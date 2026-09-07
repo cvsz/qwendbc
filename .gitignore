@@ -1,4 +1,4 @@
 ```
-# Configuration and workflow files
-.github/
+# Configuration files
+!.github/workflows/welcome.yml
 ```
