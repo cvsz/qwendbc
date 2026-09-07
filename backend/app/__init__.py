@@ -1,2 +1,3 @@
-"""Qwen LLM Backend Application"""
-__version__ = "1.0.0"
+"""QwenDBC backend package."""
+
+__version__ = "1.1.0"

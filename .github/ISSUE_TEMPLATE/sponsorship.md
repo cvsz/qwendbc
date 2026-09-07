@@ -1,57 +1,25 @@
 ---
-name: 💰 Sponsorship Inquiry
-about: Inquire about sponsoring the QwenDBC project or specific features
-title: '[Sponsorship] <Brief Description>'
-labels: ['sponsorship', 'triage']
-assignees: []
+name: Sponsorship inquiry
+about: Discuss possible sponsorship of QwenDBC work
+title: '[Sponsorship] '
+labels: ''
+assignees: ''
 ---
 
-## Sponsorship Details
+## Scope
 
-### Type of Sponsorship
-- [ ] General Project Support
-- [ ] Specific Feature Development
-- [ ] Priority Bug Fix
-- [ ] Security Audit/Review
-- [ ] Documentation Improvement
-- [ ] Other (please describe)
+Describe the feature, maintenance, documentation, or review work you are interested in sponsoring.
 
-### Proposed Budget
-<!-- Please provide an estimated budget range for this sponsorship -->
-- [ ] < $500
-- [ ] $500 - $1,000
-- [ ] $1,000 - $5,000
-- [ ] $5,000 - $10,000
-- [ ] > $10,000
-- [ ] To be discussed
+## Desired outcome
 
-### Timeline
-<!-- When do you expect the work to be completed? -->
-- [ ] Urgent (within 1 week)
-- [ ] Short-term (2-4 weeks)
-- [ ] Medium-term (1-3 months)
-- [ ] Long-term (3+ months)
-- [ ] Flexible
+Describe concrete deliverables and acceptance criteria.
 
-### Description
-<!-- Describe what you would like to sponsor. Be as specific as possible. -->
+## Timeline
 
+State any real deadline or timing constraint. Avoid including private financial or personal information in this public issue.
 
-### Expected Deliverables
-<!-- What specific outcomes do you expect from this sponsorship? -->
+## Contact
 
+Provide only a contact method you are comfortable publishing publicly. If financial or contractual details are sensitive, first ask the maintainer to establish a private channel rather than posting those details here.
 
-### Recognition Preferences
-<!-- How would you like to be recognized as a sponsor? (e.g., logo on README, mention in release notes, etc.) -->
-
-
-### Contact Information
-<!-- Provide your preferred contact method (email, Twitter, etc.) -->
-
-
-### Additional Context
-<!-- Any other relevant information about your sponsorship request -->
-
-
----
-**Note:** All sponsorship inquiries are subject to review by the project maintainers. We will respond within 5 business days. For sensitive financial discussions, please contact us directly at [your-email@example.com].
+> Opening this issue is an inquiry only. It does not create a delivery, response-time, or commercial commitment.

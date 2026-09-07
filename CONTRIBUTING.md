@@ -1,188 +1,119 @@
 # Contributing to QwenDBC
 
-Thank you for considering contributing to QwenDBC! We welcome contributions from the community and are grateful for your help in making this project better.
+Thank you for contributing to QwenDBC. Keep changes focused, testable, and aligned with the repository's local-first security model.
 
-## Table of Contents
+## Prerequisites
 
-- [Code of Conduct](#code-of-conduct)
-- [Getting Started](#getting-started)
-- [How to Contribute](#how-to-contribute)
-- [Development Setup](#development-setup)
-- [Pull Request Process](#pull-request-process)
-- [Coding Standards](#coding-standards)
-- [Testing](#testing)
-- [Documentation](#documentation)
-- [Reporting Bugs](#reporting-bugs)
-- [Suggesting Features](#suggesting-features)
+- Python 3.13
+- Node.js 24
+- Docker with Docker Compose v2 (`docker compose`)
+- GNU Make
+- ShellCheck when adding or changing `.sh` files
 
-## Code of Conduct
+## Setup
 
-Please read and follow our [Code of Conduct](CODE_OF_CONDUCT.md) to maintain a welcoming and inclusive community.
-
-## Getting Started
-
-1. Fork the repository
-2. Clone your fork: `git clone https://github.com/your-username/qwendbc.git`
-3. Create a branch: `git checkout -b feature/your-feature-name`
-4. Make your changes
-5. Push to your fork: `git push origin feature/your-feature-name`
-6. Open a Pull Request
-
-## How to Contribute
-
-### Types of Contributions We Welcome
-
-- **Bug fixes**: Found a bug? We'd love a fix!
-- **New features**: Have an idea? Let's discuss it first in an issue
-- **Documentation improvements**: Help us make the docs better
-- **Performance optimizations**: Make things faster
-- **Security improvements**: Help us keep the project secure
-- **Tests**: Add tests to improve coverage
-
-## Development Setup
-
-### Prerequisites
-
-- Python 3.11+
-- Node.js 18+ (for frontend)
-- Docker and Docker Compose (optional, for containerized development)
-
-### Backend Setup
+From the repository root:
 
 ```bash
-cd backend
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
-pip install -r requirements-dev.txt  # For development dependencies
+make setup
 ```
 
-### Frontend Setup
+This creates `.venv`, installs backend development dependencies, installs frontend dependencies, and creates a local `.env` from `configs/.env.example` when one does not already exist.
+
+Run both development servers with:
 
 ```bash
-cd frontend
-npm install
+make dev
 ```
 
-### Running Locally
+The backend listens on `http://localhost:8000` and Vite on `http://localhost:3000`.
+
+## Before opening a pull request
+
+Run the same blocking checks used by CI:
 
 ```bash
-# Using Docker Compose
-docker-compose up
-
-# Or run separately
-cd backend && uvicorn main:app --reload
-cd frontend && npm run dev
+make lint
+make test
+make security
+make shellcheck   # required when shell scripts are present
+make docker-build
 ```
 
-## Pull Request Process
+After `npm install`, include the generated `frontend/package-lock.json` in dependency or frontend changes so CI and container builds can use reproducible installs.
 
-1. **Create an Issue**: Before starting work on a significant change, please create an issue to discuss it
-2. **Branch Naming**: Use descriptive branch names (e.g., `feature/add-auth`, `fix/login-bug`)
-3. **Commit Messages**: Write clear, concise commit messages following [Conventional Commits](https://www.conventionalcommits.org/)
-4. **Tests**: Ensure all tests pass and add new tests for new functionality
-5. **Documentation**: Update documentation as needed
-6. **Review**: Be responsive to code review feedback
-7. **Squash Commits**: Squash related commits before merging
+## Backend standards
 
-## Coding Standards
+Backend code lives under `backend/app` and uses FastAPI, Pydantic v2, and Python type hints.
 
-### Python
+- Format with Black at 100 columns: `make format`.
+- `make lint` is check-only; it must not rewrite source.
+- Flake8 and mypy must pass without ignored exit codes.
+- Use `model_dump()` and Pydantic v2 `ConfigDict` / `SettingsConfigDict` APIs.
+- Keep blocking work out of the ASGI event loop. Use `asyncio.to_thread()` or a synchronous streaming iterator for CPU-bound/synchronous libraries.
+- Do not log prompts, document contents, credentials, or other sensitive payloads by default.
+- Add or update pytest coverage for behavior changes.
 
-- Follow [PEP 8](https://pep8.org/) style guidelines
-- Use type hints where possible
-- Maximum line length: 127 characters
-- Run linting before submitting: `flake8 .` and `mypy .`
-- Format code with Black: `black .`
-
-### JavaScript/TypeScript
-
-- Follow ESLint configuration
-- Use TypeScript for new code
-- Maximum line length: 100 characters
-- Run linting: `npm run lint`
-- Format code: `npm run format`
-
-### General
-
-- Keep functions small and focused
-- Write meaningful variable and function names
-- Add comments for complex logic
-- Avoid hardcoded values; use configuration
-
-## Testing
-
-### Backend Tests
+Run only backend tests with:
 
 ```bash
-cd backend
-pytest --asyncio-mode=auto
-pytest --cov=.  # With coverage
-pytest -v       # Verbose output
-pytest -m unit  # Run only unit tests
-pytest -m "not slow"  # Skip slow tests
+make test-backend
 ```
 
-### Test Structure
+## Frontend standards
 
-Our test suite includes:
-- **Unit Tests**: Test individual components (services, schemas, utilities)
-- **Integration Tests**: Test API endpoints and database interactions
-- **RAG Tests**: Test document upload and search functionality
-
-Test files are located in `backend/tests/`:
-- `test_main.py` - Core functionality tests
-- `test_rag.py` - RAG pipeline tests
-
-### Frontend Tests
+The frontend is React 19 on Vite 8 and uses oxlint.
 
 ```bash
 cd frontend
-npm test
-npm run test:coverage
+npm run lint
+npm run build
 ```
 
-### Test Requirements
+Keep API calls same-origin (`/api/v1`) unless a deployment explicitly requires `VITE_API_URL`. Always check `response.ok` before treating a request as successful, and display non-sensitive error messages to users.
 
-- All new features must include tests
-- Bug fixes should include regression tests
-- Aim for high test coverage (but prioritize meaningful tests)
-- Include unit tests, integration tests, and end-to-end tests as appropriate
-- Mark slow tests with `@pytest.mark.slow` decorator
+The repository currently gates frontend changes with lint and production build checks. Add a dedicated frontend test framework before claiming frontend unit-test coverage.
 
-## Documentation
+## RAG changes
 
-- Update README.md for significant changes
-- Add docstrings to all public functions and classes
-- Update API documentation if endpoints change
-- Include examples for new features
-- Keep CHANGELOG.md updated
+Document ingestion and semantic search live in `backend/app/services/rag_service.py` and `backend/app/routers/documents.py`.
 
-## Reporting Bugs
+Tests should normally override the RAG dependency with a fake service so API tests remain deterministic and do not download embedding models. Changes to ChromaDB or sentence-transformers integration should also be verified manually or in an integration environment with the real dependencies available.
 
-Please use our [Bug Report Template](.github/ISSUE_TEMPLATE/bug_report.md) when reporting bugs. Include:
+## Configuration and secrets
 
-- Clear description of the issue
-- Steps to reproduce
-- Expected vs actual behavior
-- Environment details (OS, Python version, etc.)
-- Screenshots or logs if applicable
+- Never commit `.env`, API keys, tokens, model cache paths, or local GGUF files.
+- Add new public configuration examples to `configs/.env.example`.
+- Keep CORS origins explicit in deployments; do not use wildcard origins with credentials.
+- If a real credential has ever been committed, remove it from current files **and rotate it**. Removing a file from the latest tree does not invalidate a leaked credential in Git history.
 
-## Suggesting Features
+## Docker
 
-Use our [Feature Request Template](.github/ISSUE_TEMPLATE/feature_request.md) to suggest features. Include:
+Validate and build both services with:
 
-- Problem description
-- Proposed solution
-- Alternative solutions considered
-- Use cases
+```bash
+make docker-build
+```
 
-## Security
+Run the stack with:
 
-For security issues, please follow our [Security Policy](SECURITY.md) and **do not** create public issues for vulnerabilities.
+```bash
+make docker-up
+```
 
-## Questions?
+The production frontend image is served by Nginx and proxies `/api/` to the backend container.
 
-Feel free to open an issue with questions or reach out to the maintainers.
+## Git and pull requests
 
-Thank you for contributing! 🎉
+1. Start from an updated `main` branch.
+2. Create a focused branch such as `fix/streaming-block` or `feat/document-search`.
+3. Use clear Conventional Commit-style messages when practical.
+4. Keep generated artifacts and local model files out of commits.
+5. Run all applicable checks above.
+6. Explain behavior changes, security implications, and test evidence in the pull request.
+
+Do not enable automatic merging until `main` is protected by repository rules requiring the relevant CI checks.
+
+## Security reports
+
+For suspected vulnerabilities, follow `SECURITY.md` rather than posting sensitive exploit details in a public issue.
