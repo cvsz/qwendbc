@@ -1,79 +1,58 @@
 # Security Policy
 
-## Supported Versions
+## Supported version
 
-We release patches for security vulnerabilities regularly. The following versions are currently supported with security updates:
+Security fixes are applied to the current `main` branch and the latest published release when practical. Older releases may not receive backports.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| Latest  | :white_check_mark: |
-| < Latest| :x:                |
+## Reporting a vulnerability
 
-## Reporting a Vulnerability
+**Do not publish exploit details, credentials, private data, or reproduction steps in a public issue.**
 
-We take the security of our project seriously. If you believe you have found a security vulnerability, please report it to us as described below.
+Use GitHub's **Private Vulnerability Reporting** for this repository when the **Report a vulnerability** option is available under the Security tab. If private reporting is not enabled, open a public issue containing only a request for a private maintainer contact channel; do not include sensitive technical details in that issue.
 
-**Please do NOT report security vulnerabilities through public GitHub issues.**
+A valid private report should include:
 
-### How to Report
+- affected version or commit;
+- affected component and preconditions;
+- impact assessment;
+- minimal reproduction steps or proof of concept;
+- suggested mitigation, if known.
 
-1. **Email**: Send an email to [security@example.com](mailto:security@example.com) with the subject line "Security Vulnerability - [Project Name]"
-2. **GitHub Private Vulnerability Reporting**: Use GitHub's private vulnerability reporting feature by going to the Security tab and clicking "Report a vulnerability"
+Do not assume a specific response or remediation deadline unless a maintainer explicitly confirms one for the report.
 
-### What to Include
+## Current security boundary
 
-Please include the following information in your report:
+QwenDBC is designed primarily for local/private use. The application currently provides:
 
-- A clear description of the vulnerability
-- Steps to reproduce the issue
-- Affected version(s)
-- Potential impact
-- Any suggested fixes (if applicable)
+- Pydantic request/config validation;
+- explicit CORS origin configuration;
+- local model execution;
+- CodeQL, dependency review, Dependabot, `pip-audit`, and `npm audit` automation;
+- non-root secret handling guidance through an ignored local `.env`.
 
-### Response Timeline
+The application **does not currently implement**:
 
-- **Acknowledgment**: We will acknowledge receipt of your vulnerability report within 48 hours
-- **Initial Assessment**: We aim to provide an initial assessment within 5 business days
-- **Resolution**: We strive to resolve critical vulnerabilities within 30 days
+- user authentication or authorization;
+- API keys or access tokens;
+- rate limiting;
+- secure user sessions;
+- tenant isolation.
 
-### Disclosure Policy
+Therefore, do not expose the FastAPI backend directly to an untrusted network. Put it behind an authenticated reverse proxy, VPN, zero-trust access layer, or equivalent control if remote access is required.
 
-- We request that you keep the vulnerability confidential until we have had a chance to address it
-- We will coordinate with you on the public disclosure timeline
-- We appreciate responsible disclosure and will credit researchers (with permission) in our security advisories
+## Secret handling
 
-## Security Best Practices
+Never commit `.env`, API keys, access tokens, private keys, or other credentials. If a real credential was committed at any point, removing it from the latest tree is insufficient: rotate/revoke the credential and assess whether Git history must be rewritten.
 
-### For Users
+Local GGUF models and vector-store data may also contain sensitive or proprietary information and are intentionally ignored by Git.
 
-- Always use the latest version of the software
-- Review and update dependencies regularly
-- Follow secure configuration guidelines
-- Monitor security advisories
+## Dependency and model supply chain
 
-### For Contributors
+- Review Dependabot and dependency-review findings before merging updates.
+- Keep lockfiles committed where the ecosystem supports them.
+- Review model repository provenance before changing `MODEL_NAME` / `MODEL_FILE`.
+- Treat downloaded models and embedding models as third-party supply-chain artifacts.
 
-- Follow secure coding practices
-- Never commit sensitive information (API keys, passwords, etc.)
-- Review code for security issues before submitting PRs
-- Keep dependencies up to date
+## Security-related pull requests
 
-## Known Security Features
-
-- Input validation and sanitization
-- Authentication and authorization mechanisms
-- Rate limiting
-- Secure session management
-- Dependency scanning via Dependabot
-- CodeQL analysis
-- Regular security audits
-
-## Contact
-
-For general security questions or concerns, please contact:
-- Email: [security@example.com](mailto:security@example.com)
-- GitHub: @maintainers
-
----
-
-*This security policy is subject to change. Please check back regularly for updates.*
+Public pull requests may contain fixes **after** sensitive exploit details have been removed or coordinated privately. Do not embed secrets, active exploit payloads, or private-report content in public commits or CI logs.

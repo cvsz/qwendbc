@@ -1,103 +1,137 @@
-"""
-Test suite for QwenDBC Backend
-"""
+from collections.abc import Generator
+from typing import Any
+
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import Mock, patch, MagicMock
-import sys
-import os
-
-# Add backend to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from app.main import app
-from app.services.llm_service import LLMService
+from app.routers.chat import get_llm_service
+from app.schemas.config import Settings
+from app.services.llm_service import llm_service
 
 
-class TestHealthEndpoint:
-    """Test health check endpoints"""
-    
-    def setup_method(self):
-        self.client = TestClient(app)
-    
-    def test_health_check(self):
-        """Test basic health endpoint"""
-        response = self.client.get("/api/v1/health")
-        assert response.status_code == 200
-        data = response.json()
-        assert "status" in data
-        assert data["status"] == "healthy"
-    
-    def test_model_info_unloaded(self):
-        """Test model info when unloaded"""
-        response = self.client.get("/api/v1/model/info")
-        assert response.status_code == 400  # Model not loaded
+class FakeLLMService:
+    def __init__(self, loaded: bool = True) -> None:
+        self.is_loaded = loaded
 
-
-class TestLLMService:
-    """Test LLM Service functionality"""
-    
-    def test_singleton_pattern(self):
-        """Test that LLMService follows singleton pattern"""
-        with patch('app.services.llm_service.Llama'):
-            service1 = LLMService.get_instance()
-            service2 = LLMService.get_instance()
-            assert service1 is service2
-    
-    def test_model_not_loaded_initially(self):
-        """Test that model is not loaded by default"""
-        with patch('app.services.llm_service.Llama'):
-            LLMService._instance = None
-            service = LLMService.get_instance()
-            assert service.model is None
-
-
-class TestChatRouter:
-    """Test chat router endpoints"""
-    
-    def setup_method(self):
-        self.client = TestClient(app)
-    
-    def test_chat_completion_model_not_loaded(self):
-        """Test chat completion returns error when model not loaded"""
-        payload = {
-            "messages": [{"role": "user", "content": "Hello"}],
-            "stream": False
+    def get_model_info(self) -> dict[str, Any]:
+        return {
+            "name": "test-model",
+            "path": "/tmp/test.gguf" if self.is_loaded else None,
+            "context_length": 4096,
+            "threads": 4,
+            "loaded": self.is_loaded,
         }
-        response = self.client.post("/api/v1/chat/completions", json=payload)
-        assert response.status_code in [400, 503]  # Model not loaded
-    
-    def test_chat_completion_invalid_payload(self):
-        """Test chat completion with invalid payload"""
-        payload = {"invalid_field": "test"}
-        response = self.client.post("/api/v1/chat/completions", json=payload)
-        assert response.status_code == 422  # Validation error
+
+    def load_model(self) -> bool:
+        self.is_loaded = True
+        return True
+
+    def unload_model(self) -> None:
+        self.is_loaded = False
+
+    def generate(self, **_: Any) -> dict[str, Any]:
+        return {
+            "id": "chatcmpl-test",
+            "object": "chat.completion",
+            "created": 1,
+            "model": "test-model",
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": "hello"},
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+        }
+
+    def generate_stream(self, **_: Any) -> Generator[dict[str, Any], None, None]:
+        yield {
+            "id": "chatcmpl-test",
+            "object": "chat.completion.chunk",
+            "created": 1,
+            "model": "test-model",
+            "choices": [{"index": 0, "delta": {"content": "hi"}, "finish_reason": None}],
+        }
 
 
-class TestConfigValidation:
-    """Test configuration validation"""
-    
-    def test_default_config_values(self):
-        """Test default configuration values"""
-        from app.schemas.config import Settings
-        settings = Settings()
-        assert settings.N_THREADS > 0
-        assert settings.MAX_CONTEXT_LENGTH > 0
-    
-    def test_model_file_validation(self):
-        """Test model file name validation"""
-        from app.schemas.config import Settings
-        settings = Settings()
-        assert settings.MODEL_FILE.endswith('.gguf')
-    
-    def test_allowed_origins_parsing(self):
-        """Test ALLOWED_ORIGINS parsing from comma-separated string"""
-        from app.schemas.config import Settings
-        settings = Settings()
-        origins = settings.allowed_origins_list
-        assert isinstance(origins, list)
-        assert len(origins) > 0
+@pytest.fixture
+def client() -> Generator[TestClient, None, None]:
+    with TestClient(app) as test_client:
+        yield test_client
+    app.dependency_overrides.clear()
 
 
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+def test_health_check(client: TestClient) -> None:
+    response = client.get("/api/v1/health")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "healthy"
+    assert "timestamp" in data
+
+
+def test_model_info_is_available_when_unloaded(client: TestClient) -> None:
+    fake = FakeLLMService(loaded=False)
+    app.dependency_overrides[get_llm_service] = lambda: fake
+    response = client.get("/api/v1/model/info")
+    assert response.status_code == 200
+    assert response.json()["loaded"] is False
+
+
+def test_chat_completion_requires_loaded_model(client: TestClient) -> None:
+    fake = FakeLLMService(loaded=False)
+    app.dependency_overrides[get_llm_service] = lambda: fake
+    response = client.post(
+        "/api/v1/chat/completions",
+        json={"messages": [{"role": "user", "content": "Hello"}]},
+    )
+    assert response.status_code == 400
+
+
+def test_chat_completion_success(client: TestClient) -> None:
+    app.dependency_overrides[get_llm_service] = lambda: FakeLLMService()
+    response = client.post(
+        "/api/v1/chat/completions",
+        json={"messages": [{"role": "user", "content": "Hello"}]},
+    )
+    assert response.status_code == 200
+    assert response.json()["choices"][0]["message"]["content"] == "hello"
+
+
+def test_streaming_completion_terminates_with_done(client: TestClient) -> None:
+    app.dependency_overrides[get_llm_service] = lambda: FakeLLMService()
+    response = client.post(
+        "/api/v1/chat/completions/stream",
+        json={"messages": [{"role": "user", "content": "Hello"}]},
+    )
+    assert response.status_code == 200
+    assert "data: [DONE]" in response.text
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"messages": []},
+        {"messages": [{"role": "invalid", "content": "Hello"}]},
+        {"messages": [{"role": "user", "content": ""}]},
+        {"messages": [{"role": "user", "content": "Hello"}], "temperature": None},
+        {"messages": [{"role": "user", "content": "Hello"}], "max_tokens": 0},
+    ],
+)
+def test_chat_request_validation(client: TestClient, payload: dict[str, Any]) -> None:
+    response = client.post("/api/v1/chat/completions", json=payload)
+    assert response.status_code == 422
+
+
+def test_llm_service_singleton() -> None:
+    assert llm_service is llm_service.get_instance()
+
+
+def test_default_settings_are_valid() -> None:
+    config = Settings(_env_file=None)
+    assert config.N_THREADS > 0
+    assert config.MAX_CONTEXT_LENGTH > 0
+    assert config.MODEL_FILE.endswith(".gguf")
+    assert config.RAG_CHUNK_OVERLAP < config.RAG_CHUNK_SIZE
+    assert config.allowed_origins_list

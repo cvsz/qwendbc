@@ -1,165 +1,120 @@
-# Qwen LLM Full-Stack Application
+# QwenDBC
 
-Production-ready full-stack application for running Qwen LLM models locally on your hardware.
+QwenDBC is a local-first FastAPI + React application for running a GGUF Qwen model with `llama.cpp`, plus local document ingestion and semantic search with ChromaDB.
 
-## Hardware Requirements Analysis
+## Current stack
 
-Based on your system specifications:
-- **CPU**: Intel Xeon E3-1225 v5 (4 cores, 4 threads) @ 3.3GHz
-- **RAM**: 16 GB DDR4-2126 (Single Channel) - *Limiting factor*
-- **GPU**: Intel HD Graphics P530 (128 MB VRAM) - *No dedicated GPU*
-- **Storage**: 1TB SSD (Samsung 870 QVO) + 2TB HDD
+- Backend: Python 3.13, FastAPI 0.141.x, Pydantic v2, llama-cpp-python 0.3.35+
+- Retrieval: ChromaDB 1.5.x, sentence-transformers 6.x
+- Frontend: React 19.2, Vite 8.2
+- Runtime: Docker Compose, Nginx frontend reverse proxy
+- Quality: Black, Flake8, mypy, pytest/coverage, oxlint, ShellCheck when shell scripts exist
+- Security: CodeQL, dependency review, pip-audit, npm audit, Dependabot
 
-### Recommended Model Size
-Given 16GB RAM with no dedicated GPU, we recommend:
-- **Qwen2.5-1.5B-Instruct** (Best performance)
-- **Qwen2.5-3B-Instruct** (Maximum size for smooth operation)
+> **Security boundary:** this project does not implement authentication. Keep the backend private/local or put it behind an authenticated reverse proxy before exposing it to the Internet.
 
-## Project Structure
-
-```
-qwen-llm-app/
-├── backend/                 # FastAPI backend
-│   ├── app/
-│   │   ├── api/            # API endpoints
-│   │   ├── routers/        # Route handlers
-│   │   ├── services/       # Business logic
-│   │   ├── models/         # Database models
-│   │   ├── schemas/        # Pydantic schemas
-│   │   └── utils/          # Utilities
-│   ├── tests/              # Test suite
-│   ├── requirements.txt    # Python dependencies
-│   └── main.py             # Application entry point
-├── frontend/               # React frontend
-│   ├── src/
-│   │   ├── components/     # React components
-│   │   ├── pages/          # Page components
-│   │   ├── hooks/          # Custom hooks
-│   │   ├── services/       # API services
-│   │   └── types/          # TypeScript types
-│   ├── public/             # Static assets
-│   └── package.json        # Node dependencies
-├── docker/                 # Docker configurations
-├── configs/                # Configuration files
-├── docker-compose.yml      # Docker Compose
-└── README.md               # This file
-```
-
-## Quick Start
-
-### Using Makefile (Recommended)
+## Quick start with Docker
 
 ```bash
-# Full setup and run development servers
-make setup && make dev
-
-# Run tests before committing
-make test && make lint
-
-# Security check
-make security
-
-# Run with Docker
-make docker-up
-
-# See all available commands
-make help
+cp configs/.env.example .env
+# Adjust N_THREADS and other settings if needed.
+docker compose up --build
 ```
 
-### Manual Setup
+Open:
 
-### Prerequisites
-- Docker & Docker Compose
-- Python 3.10+ (for local development)
-- Node.js 18+ (for frontend development)
-
-### Installation
-
-1. **Clone and setup**:
-```bash
-cd qwen-llm-app
-```
-
-2. **Configure environment**:
-```bash
-cp configs/.env.example configs/.env
-# Edit configs/.env with your settings
-```
-
-3. **Start with Docker**:
-```bash
-docker-compose up --build
-```
-
-4. **Access the application**:
 - Frontend: http://localhost:3000
 - Backend API: http://localhost:8000
-- API Docs: http://localhost:8000/docs
+- OpenAPI docs: http://localhost:8000/docs
 
-## Features
+The first model load downloads the configured GGUF file into the Docker `model_data` volume. The repository does **not** track local GGUF files or Hugging Face cache symlinks.
 
-- 🚀 **Local LLM Inference**: Run Qwen models entirely on your machine
-- 💬 **Chat Interface**: Modern, responsive chat UI
-- 📝 **Code Generation**: Specialized code assistance
-- 🔍 **RAG Support**: Document upload and semantic search
-- ⚡ **Optimized Performance**: Quantized models for CPU inference
-- 🔒 **Privacy First**: All data stays on your machine
-- 📊 **Monitoring**: Real-time resource usage tracking
-- ✅ **Test Coverage**: Comprehensive pytest test suite with unit and integration tests
-- 🔐 **Security Hardened**: CodeQL scanning, Dependabot updates, dependency review
-- 🤖 **CI/CD Ready**: 8 GitHub Actions workflows for automated testing and deployment
+## Local development
+
+Prerequisites: Python 3.13, Node.js 24, and standard build tools required by `llama-cpp-python`.
+
+```bash
+make setup
+make dev
+```
+
+The Vite development server listens on port 3000 and proxies `/api/*` to the FastAPI backend on port 8000.
+
+## Quality gates
+
+```bash
+make lint
+make test
+make security
+make shellcheck   # reports "No tracked .sh files" until shell scripts are added
+make docker-build
+```
+
+`make lint` is check-only; it no longer modifies source files. Use `make format` when you explicitly want Black to rewrite Python files.
+
+## API
+
+### Health
+
+```bash
+curl http://localhost:8000/api/v1/health
+```
+
+### Model lifecycle
+
+```bash
+curl -X POST http://localhost:8000/api/v1/model/load
+curl http://localhost:8000/api/v1/model/info
+curl -X POST http://localhost:8000/api/v1/model/unload
+```
+
+### Chat completion
+
+```bash
+curl -X POST http://localhost:8000/api/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"Hello"}]}'
+```
+
+Streaming SSE is available at `/api/v1/chat/completions/stream`.
+
+### Local document retrieval
+
+Upload UTF-8 text:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/documents/upload \
+  -F 'file=@notes.txt;type=text/plain'
+```
+
+Search indexed chunks:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/search \
+  -H 'Content-Type: application/json' \
+  -d '{"query":"deployment steps","top_k":5}'
+```
+
+Document indexing is lazy: ChromaDB and the embedding model initialize on the first upload/search request. This keeps normal chat startup lighter.
 
 ## Configuration
 
-Edit `configs/.env` to customize:
-- Model selection and path
-- Context window size
-- Temperature and generation parameters
-- API keys (if using external services)
+Copy `configs/.env.example` to the repository root as `.env`. Important settings include:
 
-## Performance Optimization
+- `MODEL_NAME`, `MODEL_FILE`, `MODEL_PATH`
+- `N_THREADS`, `N_BATCH`, `MAX_CONTEXT_LENGTH`
+- `CHROMA_DB_PATH`, `EMBEDDING_MODEL`, `RAG_CHUNK_SIZE`, `RAG_CHUNK_OVERLAP`
+- `MAX_UPLOAD_BYTES`
+- `ALLOWED_ORIGINS`
 
-For your specific hardware:
-1. Use GGUF quantized models (4-bit or 5-bit)
-2. Set appropriate thread count (4 threads)
-3. Enable memory mapping for large models
-4. Use swap space if needed
+`.env`, model files, vector-store data, virtual environments, caches, and frontend build outputs are ignored by Git.
 
-## Testing
+## CI behavior
 
-Run the test suite:
+CI is intentionally blocking. Python lint/type/test/security failures, frontend lint/build/audit failures, Compose validation, and Docker build failures now fail the workflow instead of being hidden behind `|| true` or `|| echo`.
 
-```bash
-# Backend tests
-cd backend
-pytest
-
-# With coverage
-pytest --cov=app --cov-report=html
-
-# Specific test file
-pytest tests/test_main.py -v
-
-# Run with markers
-pytest -m "not slow"  # Skip slow tests
-pytest -m unit        # Run only unit tests
-```
-
-## Development
-
-### Running Tests Locally
-```bash
-# Install test dependencies
-pip install -r backend/requirements.txt
-pip install pytest pytest-cov
-
-# Run all tests
-cd backend && pytest
-
-# Run with verbose output
-pytest -v --tb=short
-```
+The repository currently contains no tracked `.sh` scripts, so ShellCheck correctly reports that there is nothing to scan. The CI job becomes active automatically if shell scripts are added later.
 
 ## License
 
-MIT License
+MIT

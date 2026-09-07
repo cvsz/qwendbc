@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/policedbc/qwendbc/security/policy
+    about: Do not disclose sensitive vulnerability details in a public issue. Follow the private reporting guidance in the security policy.

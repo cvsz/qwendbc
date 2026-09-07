@@ -1,43 +1,35 @@
-version: "3.8"
-
 services:
   backend:
     build:
       context: .
       dockerfile: docker/Dockerfile.backend
-    container_name: qwen-backend
-    volumes:
-      - ./models:/app/models
-      - ./chroma_db:/app/chroma_db
     environment:
-      - MODEL_NAME=${MODEL_NAME:-Qwen/Qwen2.5-1.5B-Instruct-GGUF}
-      - MODEL_FILE=${MODEL_FILE:-qwen2.5-1.5b-instruct-q4_k_m.gguf}
-      - N_THREADS=${N_THREADS:-4}
-      - MAX_CONTEXT_LENGTH=${MAX_CONTEXT_LENGTH:-4096}
-      - SECRET_KEY=${SECRET_KEY:-change-this-in-production}
+      MODEL_NAME: ${MODEL_NAME:-Qwen/Qwen2.5-1.5B-Instruct-GGUF}
+      MODEL_FILE: ${MODEL_FILE:-qwen2.5-1.5b-instruct-q4_k_m.gguf}
+      MODEL_PATH: /app/models
+      CHROMA_DB_PATH: /app/chroma_db
+      N_THREADS: ${N_THREADS:-4}
+      N_BATCH: ${N_BATCH:-512}
+      MAX_CONTEXT_LENGTH: ${MAX_CONTEXT_LENGTH:-4096}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+    volumes:
+      - model_data:/app/models
+      - chroma_data:/app/chroma_db
     ports:
       - "8000:8000"
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
 
   frontend:
     build:
       context: .
       dockerfile: docker/Dockerfile.frontend
-    container_name: qwen-frontend
-    environment:
-      - REACT_APP_API_URL=http://localhost:8000/api/v1
-    ports:
-      - "3000:3000"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+    ports:
+      - "3000:80"
     restart: unless-stopped
 
 volumes:
-  models:
-  chroma_db:
+  model_data:
+  chroma_data:

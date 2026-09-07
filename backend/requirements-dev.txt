@@ -1,0 +1,11 @@
+-r requirements.txt
+
+# Test / quality tooling
+httpx>=0.28.1,<1.0
+pytest>=9.1.1,<10.0
+pytest-asyncio>=1.4.0,<2.0
+pytest-cov>=7.1.0,<8.0
+black>=26.5.1,<27.0
+flake8>=7.3.0,<8.0
+mypy>=2.3.1,<3.0
+pip-audit>=2.10.1,<3.0

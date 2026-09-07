@@ -1,5 +1,3 @@
-# Welcome Bot
-
 name: Welcome New Contributors
 
 on:
@@ -15,45 +13,12 @@ permissions:
 jobs:
   welcome:
     runs-on: ubuntu-latest
-    
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Welcome first-time issue creator
-      if: github.event_name == 'issues'
-      uses: actions/first-interaction@v3
-      with:
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        issue_message: |
-          👋 Hello! Thank you for opening this issue.
-          
-          We appreciate your contribution to improving QwenDBC. A maintainer will review your issue soon.
-          
-          In the meantime, please make sure you've provided:
-          - Clear description of the problem or feature request
-          - Steps to reproduce (if applicable)
-          - Environment details
-          
-          Please also check our [Contributing Guide](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md).
-          
-          Happy coding! 🚀
-    
-    - name: Welcome first-time PR author
-      if: github.event_name == 'pull_request_target'
-      uses: actions/first-interaction@v3
-      with:
-        repo-token: ${{ secrets.GITHUB_TOKEN }}
-        pr-message: |
-          🎉 Thank you for your first pull request!
-          
-          We're excited to have you contribute to QwenDBC. A maintainer will review your PR soon.
-          
-          Before we review, please ensure:
-          - ✅ Tests pass (run `pytest` in backend directory)
-          - ✅ Code is formatted (run `black .` and `flake8 .`)
-          - ✅ Documentation is updated if needed
-          - ✅ Commit messages follow Conventional Commits
-          
-          Check out our [Contributing Guide](CONTRIBUTING.md) for more details.
-          
-          Thanks again for contributing! 🙌
+      - name: Welcome first-time contributor
+        uses: actions/first-interaction@v3
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          issue_message: |
+            👋 Thank you for opening your first issue in QwenDBC. Please include clear reproduction steps and environment details when applicable.
+          pr_message: |
+            🎉 Thank you for your first pull request to QwenDBC. Please ensure CI passes and documentation is updated for user-facing changes.
