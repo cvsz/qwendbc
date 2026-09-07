@@ -47,6 +47,27 @@ qwen-llm-app/
 
 ## Quick Start
 
+### Using Makefile (Recommended)
+
+```bash
+# Full setup and run development servers
+make setup && make dev
+
+# Run tests before committing
+make test && make lint
+
+# Security check
+make security
+
+# Run with Docker
+make docker-up
+
+# See all available commands
+make help
+```
+
+### Manual Setup
+
 ### Prerequisites
 - Docker & Docker Compose
 - Python 3.10+ (for local development)
