@@ -28,13 +28,10 @@ class TestHealthEndpoint:
         assert "status" in data
         assert data["status"] == "healthy"
     
-    def test_model_status_unloaded(self):
-        """Test model status when unloaded"""
-        response = self.client.get("/api/v1/model/status")
-        assert response.status_code == 200
-        data = response.json()
-        assert "model_loaded" in data
-        assert data["model_loaded"] is False
+    def test_model_info_unloaded(self):
+        """Test model info when unloaded"""
+        response = self.client.get("/api/v1/model/info")
+        assert response.status_code == 400  # Model not loaded
 
 
 class TestLLMService:
@@ -42,7 +39,7 @@ class TestLLMService:
     
     def test_singleton_pattern(self):
         """Test that LLMService follows singleton pattern"""
-        with patch('app.services.llm_service.Llama') as mock_llama:
+        with patch('app.services.llm_service.Llama'):
             service1 = LLMService.get_instance()
             service2 = LLMService.get_instance()
             assert service1 is service2
@@ -50,8 +47,6 @@ class TestLLMService:
     def test_model_not_loaded_initially(self):
         """Test that model is not loaded by default"""
         with patch('app.services.llm_service.Llama'):
-            service = LLMService.get_instance()
-            # Reset instance for clean test
             LLMService._instance = None
             service = LLMService.get_instance()
             assert service.model is None
@@ -86,14 +81,22 @@ class TestConfigValidation:
         """Test default configuration values"""
         from app.schemas.config import Settings
         settings = Settings()
-        assert settings.n_threads > 0
-        assert settings.max_context_length > 0
+        assert settings.N_THREADS > 0
+        assert settings.MAX_CONTEXT_LENGTH > 0
     
     def test_model_file_validation(self):
         """Test model file name validation"""
         from app.schemas.config import Settings
         settings = Settings()
-        assert settings.model_file.endswith('.gguf')
+        assert settings.MODEL_FILE.endswith('.gguf')
+    
+    def test_allowed_origins_parsing(self):
+        """Test ALLOWED_ORIGINS parsing from comma-separated string"""
+        from app.schemas.config import Settings
+        settings = Settings()
+        origins = settings.allowed_origins_list
+        assert isinstance(origins, list)
+        assert len(origins) > 0
 
 
 if __name__ == "__main__":

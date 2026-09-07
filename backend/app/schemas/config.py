@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings
-from typing import List
+from typing import List, Optional
+from functools import lru_cache
 
 
 class Settings(BaseSettings):
@@ -34,12 +35,25 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
-    # CORS
-    ALLOWED_ORIGINS: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    # CORS - parse comma-separated string if needed
+    ALLOWED_ORIGINS: Optional[str] = None
+    
+    @property
+    def allowed_origins_list(self) -> List[str]:
+        """Parse ALLOWED_ORIGINS from comma-separated string or use default"""
+        if self.ALLOWED_ORIGINS:
+            return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",")]
+        return ["http://localhost:3000", "http://127.0.0.1:3000"]
 
     class Config:
         env_file = ".env"
         case_sensitive = True
 
 
-settings = Settings()
+@lru_cache()
+def get_settings() -> Settings:
+    """Get cached settings instance"""
+    return Settings()
+
+
+settings = get_settings()

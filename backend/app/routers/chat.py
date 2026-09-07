@@ -23,12 +23,12 @@ def get_llm_service():
 @router.get("/health", response_model=HealthResponse)
 async def health_check():
     """Check API health status"""
-    from datetime import datetime
+    from datetime import datetime, timezone
     return {
         "status": "healthy",
         "version": settings.APP_VERSION,
         "model_loaded": llm_service.is_loaded,
-        "timestamp": datetime.utcnow()
+        "timestamp": datetime.now(timezone.utc)
     }
 
 
