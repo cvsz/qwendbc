@@ -1,0 +1,49 @@
+# PR Labeler Configuration
+# Automatically labels PRs based on file patterns
+
+backend:
+  - changed-files:
+      - any-glob-to-any-file: 'backend/**/*'
+      - any-glob-to-any-file: '**/requirements*.txt'
+
+frontend:
+  - changed-files:
+      - any-glob-to-any-file: 'frontend/**/*'
+      - any-glob-to-any-file: '**/package*.json'
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file: '**/*.md'
+      - any-glob-to-any-file: 'docs/**/*'
+
+ci/cd:
+  - changed-files:
+      - any-glob-to-any-file: '.github/workflows/**/*'
+      - any-glob-to-any-file: '.github/**/*'
+
+docker:
+  - changed-files:
+      - any-glob-to-any-file: 'docker/**/*'
+      - any-glob-to-any-file: 'Dockerfile*'
+      - any-glob-to-any-file: 'docker-compose*.yml'
+
+configuration:
+  - changed-files:
+      - any-glob-to-any-file: 'configs/**/*'
+      - any-glob-to-any-file: '**/.env*'
+      - any-glob-to-any-file: '**/*.yaml'
+      - any-glob-to-any-file: '**/*.yml'
+
+security:
+  - changed-files:
+      - any-glob-to-any-file: '**/requirements*.txt'
+      - any-glob-to-any-file: 'SECURITY.md'
+      - any-glob-to-any-file: '.github/dependabot.yml'
+
+tests:
+  - changed-files:
+      - any-glob-to-any-file: '**/*test*.py'
+      - any-glob-to-any-file: '**/*spec*.ts'
+      - any-glob-to-any-file: '**/*spec*.tsx'
+      - any-glob-to-any-file: 'backend/tests/**/*'
+      - any-glob-to-any-file: 'frontend/__tests__/**/*'
