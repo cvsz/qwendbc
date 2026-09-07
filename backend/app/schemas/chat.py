@@ -41,6 +41,9 @@ class HealthResponse(BaseModel):
     version: str
     model_loaded: bool
     timestamp: datetime
+    
+    class Config:
+        protected_namespaces = ()
 
 
 class ModelInfo(BaseModel):
