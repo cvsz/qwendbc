@@ -15,7 +15,8 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Welcome first-time contributors
+    - name: Welcome first-time issue creator
+      if: github.event_name == 'issues'
       uses: actions/first-interaction@v3
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
@@ -32,7 +33,13 @@ jobs:
           Please also check our [Contributing Guide](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md).
           
           Happy coding! 🚀
-        pr_message: |
+    
+    - name: Welcome first-time PR author
+      if: github.event_name == 'pull_request_target'
+      uses: actions/first-interaction@v3
+      with:
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+        pr-message: |
           🎉 Thank you for your first pull request!
           
           We're excited to have you contribute to QwenDBC. A maintainer will review your PR soon.
