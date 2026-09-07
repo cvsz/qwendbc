@@ -1,46 +1,4 @@
 ```
-# Dependencies
-venv/
-.venv/
-__pycache__/
-*.pyc
-*.pyo
-*.pyd
-.Python
-.env
-.env.local
-.env.*
-.node-version
-.python-version
-
-# Build artifacts
-build/
-dist/
-*.egg-info/
-.coverage
-coverage/
-htmlcov/
-
-# Logs
-*.log
-
-# Editor/IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
-Thumbs.db
-
-# Docker
-.dockerenv
-!docker/
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
+# Configuration files
+!.github/workflows/welcome.yml
 ```
