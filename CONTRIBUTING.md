@@ -118,7 +118,21 @@ cd frontend && npm run dev
 cd backend
 pytest --asyncio-mode=auto
 pytest --cov=.  # With coverage
+pytest -v       # Verbose output
+pytest -m unit  # Run only unit tests
+pytest -m "not slow"  # Skip slow tests
 ```
+
+### Test Structure
+
+Our test suite includes:
+- **Unit Tests**: Test individual components (services, schemas, utilities)
+- **Integration Tests**: Test API endpoints and database interactions
+- **RAG Tests**: Test document upload and search functionality
+
+Test files are located in `backend/tests/`:
+- `test_main.py` - Core functionality tests
+- `test_rag.py` - RAG pipeline tests
 
 ### Frontend Tests
 
@@ -134,6 +148,7 @@ npm run test:coverage
 - Bug fixes should include regression tests
 - Aim for high test coverage (but prioritize meaningful tests)
 - Include unit tests, integration tests, and end-to-end tests as appropriate
+- Mark slow tests with `@pytest.mark.slow` decorator
 
 ## Documentation
 

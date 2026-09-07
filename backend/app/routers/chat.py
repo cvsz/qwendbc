@@ -82,9 +82,11 @@ async def chat_completions(
             max_tokens=request.max_tokens
         )
         return response
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Chat completion failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Chat completion failed: {type(e).__name__} - {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error during chat completion")
 
 
 @router.post("/chat/completions/stream")
@@ -110,9 +112,12 @@ async def chat_completions_stream(
             ):
                 yield f"data: {json.dumps(chunk)}\n\n"
             yield "data: [DONE]\n\n"
+        except HTTPException:
+            raise
         except Exception as e:
-            logger.error(f"Stream failed: {e}")
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+            logger.error(f"Stream failed: {type(e).__name__} - {e}", exc_info=True)
+            # Return generic error message to avoid exposing internal details
+            yield f"data: {json.dumps({'error': 'An error occurred while processing your request'})}\n\n"
     
     return StreamingResponse(
         generate(),

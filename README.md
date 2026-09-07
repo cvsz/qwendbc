@@ -47,6 +47,27 @@ qwen-llm-app/
 
 ## Quick Start
 
+### Using Makefile (Recommended)
+
+```bash
+# Full setup and run development servers
+make setup && make dev
+
+# Run tests before committing
+make test && make lint
+
+# Security check
+make security
+
+# Run with Docker
+make docker-up
+
+# See all available commands
+make help
+```
+
+### Manual Setup
+
 ### Prerequisites
 - Docker & Docker Compose
 - Python 3.10+ (for local development)
@@ -84,6 +105,9 @@ docker-compose up --build
 - ⚡ **Optimized Performance**: Quantized models for CPU inference
 - 🔒 **Privacy First**: All data stays on your machine
 - 📊 **Monitoring**: Real-time resource usage tracking
+- ✅ **Test Coverage**: Comprehensive pytest test suite with unit and integration tests
+- 🔐 **Security Hardened**: CodeQL scanning, Dependabot updates, dependency review
+- 🤖 **CI/CD Ready**: 8 GitHub Actions workflows for automated testing and deployment
 
 ## Configuration
 
@@ -100,6 +124,41 @@ For your specific hardware:
 2. Set appropriate thread count (4 threads)
 3. Enable memory mapping for large models
 4. Use swap space if needed
+
+## Testing
+
+Run the test suite:
+
+```bash
+# Backend tests
+cd backend
+pytest
+
+# With coverage
+pytest --cov=app --cov-report=html
+
+# Specific test file
+pytest tests/test_main.py -v
+
+# Run with markers
+pytest -m "not slow"  # Skip slow tests
+pytest -m unit        # Run only unit tests
+```
+
+## Development
+
+### Running Tests Locally
+```bash
+# Install test dependencies
+pip install -r backend/requirements.txt
+pip install pytest pytest-cov
+
+# Run all tests
+cd backend && pytest
+
+# Run with verbose output
+pytest -v --tb=short
+```
 
 ## License
 
