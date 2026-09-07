@@ -1,0 +1,55 @@
+# Welcome Bot
+
+name: Welcome New Contributors
+
+on:
+  issues:
+    types: [opened]
+  pull_request_target:
+    types: [opened]
+
+jobs:
+  welcome:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Welcome first-time issue creator
+      if: github.event_name == 'issues'
+      uses: actions/first-interaction@v1
+      with:
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+        issue-message: |
+          👋 Hello! Thank you for opening this issue.
+          
+          We appreciate your contribution to improving QwenDBC. A maintainer will review your issue soon.
+          
+          In the meantime, please make sure you've provided:
+          - Clear description of the problem or feature request
+          - Steps to reproduce (if applicable)
+          - Environment details
+          
+          Please also check our [Contributing Guide](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md).
+          
+          Happy coding! 🚀
+    
+    - name: Welcome first-time PR author
+      if: github.event_name == 'pull_request_target'
+      uses: actions/first-interaction@v1
+      with:
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+        pr-message: |
+          🎉 Thank you for your first pull request!
+          
+          We're excited to have you contribute to QwenDBC. A maintainer will review your PR soon.
+          
+          Before we review, please ensure:
+          - ✅ Tests pass (run `pytest` in backend directory)
+          - ✅ Code is formatted (run `black .` and `flake8 .`)
+          - ✅ Documentation is updated if needed
+          - ✅ Commit messages follow Conventional Commits
+          
+          Check out our [Contributing Guide](CONTRIBUTING.md) for more details.
+          
+          Thanks again for contributing! 🙌
