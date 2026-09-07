@@ -4,16 +4,20 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.venv/
+.Python
+env/
 venv/
+.venv/
 .env
 .env.local
 .env.*
-# Python specific
-*.py[cod]
-*$py.class
-*.so
-.Python
+.env~*
+.env.local~
+*.env
+*.env.local
+*.env.*
+
+# Build and distribution artifacts
 build/
 develop-eggs/
 dist/
@@ -29,18 +33,38 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+
 # Testing
 .coverage
 coverage/
 htmlcov/
-.nyc_output
-# Logs
-*.log
-# Editor
+.nosetests
+.unit_test.log
+
+# IDE and editor files
 .vscode/
 .idea/
 *.swp
 *.swo
+*.tmp
+*.log
+
+# OS generated files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+
+# Python specific
+__pycache__/
+*.py[cod]
+*$py.class
+*$pyc.class
+*.so
+.Python
+.pytest_cache/
+.mypy_cache/
 ```
