@@ -7,29 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Comprehensive test suite with unit tests for health endpoints, LLM service, chat router, and RAG functionality
+- Pytest configuration with coverage reporting and test markers
+- Test directory structure under `backend/tests/`
+- GitHub Actions welcome workflow with proper permissions for first-interaction bot
+
 ### Security
+- Fixed GitHub Actions welcome.yml permissions issue (403 Forbidden error)
+- Added `issues: write` and `pull-requests: write` permissions for actions/first-interaction@v3
 - Updated chromadb to >=0.6.0 to address critical code injection vulnerabilities
 - Updated llama-cpp-python to >=0.3.8 to fix remote code execution vulnerability
 - Updated python-jose to >=3.5.0 to resolve algorithm confusion and DoS issues
 - Updated python-multipart to >=0.0.20 to fix multiple DoS and file write vulnerabilities
 
-### Added
-- GitHub Actions CI/CD pipeline for automated testing and security scanning
-- CodeQL analysis for continuous security monitoring
-- Dependabot configuration for automated dependency updates
-- Auto-merge workflow for Dependabot security patches
-- Dependency review workflow to block vulnerable dependencies
-- Issue templates for bug reports, feature requests, and security issues
-- CODEOWNERS file for automatic reviewer assignment
-- SECURITY.md with vulnerability reporting guidelines
-- CONTRIBUTING.md with contribution guidelines
-- CODE_OF_CONDUCT.md establishing community standards
-
 ### Changed
 - Improved documentation structure
+- Enhanced CI/CD pipeline with test execution step
 
 ### Fixed
 - Multiple critical and high severity security vulnerabilities in dependencies
+- Welcome bot unable to post comments on first-time contributor issues and PRs
 
 ## [1.0.0] - 2024-01-01
 
