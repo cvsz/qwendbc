@@ -75,8 +75,9 @@ function App() {
       return;
     }
 
+    const previousMessages = messages;
     const userMessage = { role: "user", content: trimmedInput };
-    const conversation = [...messages, userMessage].slice(-MAX_API_MESSAGES);
+    const conversation = [...previousMessages, userMessage].slice(-MAX_API_MESSAGES);
     setMessages(conversation);
     setInput("");
     setIsLoading(true);
@@ -101,6 +102,8 @@ function App() {
       );
     } catch (error) {
       console.error("Send message failed:", error);
+      setMessages(previousMessages);
+      setInput(trimmedInput);
       window.alert(error.message || "Failed to get response. Check backend logs.");
     } finally {
       setIsLoading(false);

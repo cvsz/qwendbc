@@ -15,22 +15,26 @@ logger = get_logger(__name__)
 
 
 class LLMService:
-    """Thread-safe singleton for model download, loading, and inference."""
+    """Thread-safe singleton for model download, lifecycle, and inference."""
 
     _instance: "LLMService | None" = None
-    _lock = threading.RLock()
+    _instance_lock = threading.RLock()
     model: Llama | None
     model_path: str | None
     is_loaded: bool
+    _state_lock: Any
+    _lifecycle_lock: Any
     _inference_lock: Any
 
     def __new__(cls) -> "LLMService":
-        with cls._lock:
+        with cls._instance_lock:
             if cls._instance is None:
                 instance = super().__new__(cls)
                 instance.model = None
                 instance.model_path = None
                 instance.is_loaded = False
+                instance._state_lock = threading.RLock()
+                instance._lifecycle_lock = threading.RLock()
                 instance._inference_lock = threading.RLock()
                 cls._instance = instance
         assert cls._instance is not None
@@ -59,9 +63,12 @@ class LLMService:
         return model_path
 
     def load_model(self, model_path: str | None = None) -> bool:
-        with self._lock:
-            if self.is_loaded and self.model is not None:
-                return True
+        # Lifecycle operations are serialized so concurrent load/unload calls have a
+        # deterministic order and cannot publish contradictory final state.
+        with self._lifecycle_lock:
+            with self._state_lock:
+                if self.is_loaded and self.model is not None:
+                    return True
 
             try:
                 resolved_path = model_path or self.download_model()
@@ -76,17 +83,24 @@ class LLMService:
                     use_mlock=False,
                     verbose=settings.DEBUG,
                 )
-                self.model = model
-                self.model_path = resolved_path
-                self.is_loaded = True
-                logger.info("Model loaded successfully")
-                return True
             except Exception:
-                self.model = None
-                self.model_path = None
-                self.is_loaded = False
+                with self._state_lock:
+                    self.model = None
+                    self.model_path = None
+                    self.is_loaded = False
                 logger.exception("Failed to load model")
                 return False
+
+            # Synchronize publication with inference so a generator can only observe
+            # the fully initialized model or the unloaded state, never a transition.
+            with self._inference_lock:
+                with self._state_lock:
+                    self.model = model
+                    self.model_path = resolved_path
+                    self.is_loaded = True
+
+            logger.info("Model loaded successfully")
+            return True
 
     @staticmethod
     def _format_messages(messages: list[dict[str, str]]) -> str:
@@ -102,10 +116,11 @@ class LLMService:
 
     def _get_loaded_model_locked(self) -> Llama:
         """Return the active model while the caller holds the inference lock."""
-        model = self.model
-        if not self.is_loaded or model is None:
-            raise RuntimeError("Model not loaded")
-        return model
+        with self._state_lock:
+            model = self.model
+            if not self.is_loaded or model is None:
+                raise RuntimeError("Model not loaded")
+            return model
 
     def generate(
         self,
@@ -203,13 +218,15 @@ class LLMService:
                 raise
 
     def unload_model(self) -> None:
-        # Do not close llama.cpp while another thread is generating tokens.
-        with self._inference_lock:
-            with self._lock:
-                model = self.model
-                self.model = None
-                self.model_path = None
-                self.is_loaded = False
+        # Serialize lifecycle calls and wait for active generation before closing llama.cpp.
+        with self._lifecycle_lock:
+            with self._inference_lock:
+                with self._state_lock:
+                    model = self.model
+                    self.model = None
+                    self.model_path = None
+                    self.is_loaded = False
+
                 if model is not None:
                     close = getattr(model, "close", None)
                     if callable(close):
@@ -217,7 +234,7 @@ class LLMService:
                     logger.info("Model unloaded")
 
     def get_model_info(self) -> dict[str, Any]:
-        with self._lock:
+        with self._state_lock:
             return {
                 "name": settings.MODEL_NAME,
                 "path": str(self.model_path) if self.model_path else None,
