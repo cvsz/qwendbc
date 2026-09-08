@@ -40,12 +40,14 @@ All notable changes to this project are documented here. The format follows [Kee
 - Stopped tracking the root `.env` while preserving a developer's local file during bundle application.
 - Fixed Makefile test paths, missing coverage tooling, mutating lint behavior, and destructive cleanup targets.
 - Fixed a model lifecycle race where inference could validate `self.model`, lose a race to unload, and then call a closed/cleared model reference.
+- Serialized concurrent model load/unload operations so later lifecycle calls determine the final model state.
 - Fixed invalid `MAX_TOKENS` configurations that could exceed `MAX_CONTEXT_LENGTH`.
 - Prevented `.env` from overriding the source-controlled application version, eliminating another version-drift path.
 - Fixed Docker configuration values from `.env` being used only for Compose interpolation instead of being passed into the backend container.
 - Fixed Nginx's 1 MiB default body limit rejecting otherwise-valid document uploads.
 - Fixed frontend HTTP success handling and deprecated keyboard event usage.
 - Fixed frontend error handling so transport failures are not injected as fabricated assistant messages into future model context.
+- Rolled back failed user turns and restored the draft input so failed requests do not enter later model history.
 - Fixed the clear-chat race that could leave an orphan assistant reply after clearing during an in-flight request.
 - Fixed invalid pytest configuration that used TOML syntax inside `pytest.ini`.
 - Fixed `actions/first-interaction` input names and removed unnecessary checkout from the welcome workflow.
