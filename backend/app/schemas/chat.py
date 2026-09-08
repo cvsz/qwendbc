@@ -15,7 +15,11 @@ class ChatRequest(BaseModel):
     messages: list[ChatMessage] = Field(min_length=1, max_length=128)
     temperature: float = Field(default=settings.TEMPERATURE, ge=0.0, le=2.0)
     top_p: float = Field(default=settings.TOP_P, ge=0.0, le=1.0)
-    max_tokens: int = Field(default=settings.MAX_TOKENS, ge=1, le=32768)
+    max_tokens: int = Field(
+        default=settings.MAX_TOKENS,
+        ge=1,
+        le=settings.MAX_CONTEXT_LENGTH,
+    )
 
 
 class ChatResponse(BaseModel):

@@ -4,6 +4,7 @@ SHELL := /bin/bash
 PYTHON_SYSTEM ?= python3
 NPM ?= npm
 DOCKER ?= docker
+DEV_HOST ?= 127.0.0.1
 VENV := .venv
 PYTHON := $(VENV)/bin/python
 PIP := $(VENV)/bin/pip
@@ -44,19 +45,24 @@ setup-backend: $(VENV)/bin/python
 	$(PIP) install -r backend/requirements-dev.txt
 
 setup-frontend:
-	cd frontend && $(NPM) install --no-audit --no-fund
+	@cd frontend && \
+	  if [[ -f package-lock.json ]]; then \
+	    $(NPM) ci --no-audit --no-fund; \
+	  else \
+	    $(NPM) install --no-audit --no-fund; \
+	  fi
 
 setup: init-env setup-backend setup-frontend
 
 backend: $(VENV)/bin/python
-	PYTHONPATH=backend $(UVICORN) app.main:app --reload --host 0.0.0.0 --port 8000
+	PYTHONPATH=backend $(UVICORN) app.main:app --reload --host $(DEV_HOST) --port 8000
 
 frontend:
 	cd frontend && $(NPM) run dev
 
 dev: $(VENV)/bin/python
 	@set -eu; \
-	  PYTHONPATH=backend $(UVICORN) app.main:app --reload --host 0.0.0.0 --port 8000 & backend_pid=$$!; \
+	  PYTHONPATH=backend $(UVICORN) app.main:app --reload --host $(DEV_HOST) --port 8000 & backend_pid=$$!; \
 	  (cd frontend && $(NPM) run dev) & frontend_pid=$$!; \
 	  cleanup() { kill $$backend_pid $$frontend_pid 2>/dev/null || true; }; \
 	  trap cleanup EXIT INT TERM; \
@@ -89,8 +95,12 @@ security: $(VENV)/bin/python
 
 shellcheck:
 	@command -v shellcheck >/dev/null 2>&1 || { echo 'shellcheck is not installed'; exit 2; }
-	@mapfile -d '' scripts < <(find . -type f -name '*.sh' -not -path './.git/*' -print0); \
-	  if (( $${#scripts[@]} == 0 )); then echo 'No tracked .sh files to check.'; else shellcheck "$${scripts[@]}"; fi
+	@mapfile -d '' scripts < <(git ls-files -z -- '*.sh'); \
+	  if (( $${#scripts[@]} == 0 )); then \
+	    echo 'No tracked .sh files to check.'; \
+	  else \
+	    shellcheck "$${scripts[@]}"; \
+	  fi
 
 docker-build:
 	$(DOCKER) compose config --quiet

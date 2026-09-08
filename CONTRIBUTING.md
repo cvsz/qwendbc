@@ -6,7 +6,7 @@ Thank you for contributing to QwenDBC. Keep changes focused, testable, and align
 
 - Python 3.13
 - Node.js 24
-- Docker with Docker Compose v2 (`docker compose`)
+- Docker with Docker Compose 2.24+
 - GNU Make
 - ShellCheck when adding or changing `.sh` files
 
@@ -26,7 +26,7 @@ Run both development servers with:
 make dev
 ```
 
-The backend listens on `http://localhost:8000` and Vite on `http://localhost:3000`.
+The backend listens on `http://127.0.0.1:8000` and Vite on `http://127.0.0.1:3000` by default. Do not change development defaults to `0.0.0.0` unless the unauthenticated API is protected from untrusted networks.
 
 ## Before opening a pull request
 
@@ -36,11 +36,11 @@ Run the same blocking checks used by CI:
 make lint
 make test
 make security
-make shellcheck   # required when shell scripts are present
+make shellcheck   # required when tracked shell scripts are present
 make docker-build
 ```
 
-After `npm install`, include the generated `frontend/package-lock.json` in dependency or frontend changes so CI and container builds can use reproducible installs.
+After `npm install`, include the generated `frontend/package-lock.json` in dependency or frontend changes so CI and container builds can use reproducible installs. Until a lockfile exists, npm transitive resolution is not deterministic even though top-level package versions are pinned.
 
 ## Backend standards
 
@@ -51,6 +51,7 @@ Backend code lives under `backend/app` and uses FastAPI, Pydantic v2, and Python
 - Flake8 and mypy must pass without ignored exit codes.
 - Use `model_dump()` and Pydantic v2 `ConfigDict` / `SettingsConfigDict` APIs.
 - Keep blocking work out of the ASGI event loop. Use `asyncio.to_thread()` or a synchronous streaming iterator for CPU-bound/synchronous libraries.
+- Keep model lifecycle and inference state changes synchronized; do not read a model reference before acquiring the inference lock and then use it after another thread can unload the model.
 - Do not log prompts, document contents, credentials, or other sensitive payloads by default.
 - Add or update pytest coverage for behavior changes.
 
@@ -72,6 +73,8 @@ npm run build
 
 Keep API calls same-origin (`/api/v1`) unless a deployment explicitly requires `VITE_API_URL`. Always check `response.ok` before treating a request as successful, and display non-sensitive error messages to users.
 
+Do not inject transport/UI error strings into the chat history sent back to the model. Keep the conversation within the backend's message-count limit, and omit generation fields when the UI intends to use backend configuration defaults.
+
 The repository currently gates frontend changes with lint and production build checks. Add a dedicated frontend test framework before claiming frontend unit-test coverage.
 
 ## RAG changes
@@ -85,6 +88,7 @@ Tests should normally override the RAG dependency with a fake service so API tes
 - Never commit `.env`, API keys, tokens, model cache paths, or local GGUF files.
 - Add new public configuration examples to `configs/.env.example`.
 - Keep CORS origins explicit in deployments; do not use wildcard origins with credentials.
+- Docker reads `configs/.env.example` and an optional root `.env` into the backend container; Compose-specific `environment` entries override container-only paths and bind settings.
 - If a real credential has ever been committed, remove it from current files **and rotate it**. Removing a file from the latest tree does not invalidate a leaked credential in Git history.
 
 ## Docker
@@ -101,7 +105,7 @@ Run the stack with:
 make docker-up
 ```
 
-The production frontend image is served by Nginx and proxies `/api/` to the backend container.
+The production frontend image is served by Nginx and proxies `/api/` to the backend container. Docker publishes frontend/backend ports on loopback by default through `BIND_HOST=127.0.0.1`.
 
 ## Git and pull requests
 

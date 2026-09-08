@@ -1,10 +1,10 @@
-"""
-Compatibility shim for legacy imports.
-The canonical ASGI application is now at app.main:app
-"""
-from app.main import app  # noqa: F401
+"""Compatibility shim for legacy imports and direct execution."""
 
-# For backwards compatibility
+import uvicorn
+
+from app.main import app  # noqa: F401
+from app.schemas.config import settings
+
+
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000)
+    uvicorn.run("app.main:app", host=settings.HOST, port=settings.PORT)

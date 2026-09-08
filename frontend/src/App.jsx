@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import "./App.css";
 
 const API_URL = import.meta.env.VITE_API_URL || "/api/v1";
+const MAX_API_MESSAGES = 128;
 
 async function parseError(response, fallback) {
   try {
@@ -75,7 +76,7 @@ function App() {
     }
 
     const userMessage = { role: "user", content: trimmedInput };
-    const conversation = [...messages, userMessage];
+    const conversation = [...messages, userMessage].slice(-MAX_API_MESSAGES);
     setMessages(conversation);
     setInput("");
     setIsLoading(true);
@@ -84,11 +85,7 @@ function App() {
       const response = await fetch(`${API_URL}/chat/completions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          messages: conversation,
-          temperature: 0.7,
-          max_tokens: 2048,
-        }),
+        body: JSON.stringify({ messages: conversation }),
       });
       if (!response.ok) {
         throw new Error(await parseError(response, "Chat request failed"));
@@ -99,13 +96,12 @@ function App() {
       if (typeof content !== "string") {
         throw new Error("Backend returned an invalid chat response");
       }
-      setMessages((previous) => [...previous, { role: "assistant", content }]);
+      setMessages((previous) =>
+        [...previous, { role: "assistant", content }].slice(-MAX_API_MESSAGES),
+      );
     } catch (error) {
       console.error("Send message failed:", error);
-      setMessages((previous) => [
-        ...previous,
-        { role: "assistant", content: `Error: ${error.message || "Failed to get response"}` },
-      ]);
+      window.alert(error.message || "Failed to get response. Check backend logs.");
     } finally {
       setIsLoading(false);
     }
@@ -138,7 +134,12 @@ function App() {
               {isLoading ? "Loading..." : "Load Model"}
             </button>
           )}
-          <button onClick={() => setMessages([])} className="clear-btn" type="button">
+          <button
+            onClick={() => setMessages([])}
+            disabled={isLoading}
+            className="clear-btn"
+            type="button"
+          >
             Clear Chat
           </button>
         </div>

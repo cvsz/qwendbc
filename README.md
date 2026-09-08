@@ -11,7 +11,7 @@ QwenDBC is a local-first FastAPI + React application for running a GGUF Qwen mod
 - Quality: Black, Flake8, mypy, pytest/coverage, oxlint, ShellCheck when shell scripts exist
 - Security: CodeQL, dependency review, pip-audit, npm audit, Dependabot
 
-> **Security boundary:** this project does not implement authentication. Keep the backend private/local or put it behind an authenticated reverse proxy before exposing it to the Internet.
+> **Security boundary:** this project does not implement authentication. Docker and local development bind to loopback by default. Keep that default unless the application is protected by an authenticated reverse proxy, VPN, zero-trust access layer, or equivalent control.
 
 ## Quick start with Docker
 
@@ -27,7 +27,11 @@ Open:
 - Backend API: http://localhost:8000
 - OpenAPI docs: http://localhost:8000/docs
 
+Both published ports bind to `127.0.0.1` by default. `BIND_HOST=0.0.0.0` intentionally exposes the frontend and its `/api/` proxy to the network, so use it only when access control is already in place.
+
 The first model load downloads the configured GGUF file into the Docker `model_data` volume. The repository does **not** track local GGUF files or Hugging Face cache symlinks.
+
+Docker loads `configs/.env.example` into the backend container and then applies an optional root `.env` as an override. Container-only paths (`MODEL_PATH` and `CHROMA_DB_PATH`) are overridden by Compose so all other documented settings work consistently in Docker.
 
 ## Local development
 
@@ -38,7 +42,7 @@ make setup
 make dev
 ```
 
-The Vite development server listens on port 3000 and proxies `/api/*` to the FastAPI backend on port 8000.
+The FastAPI and Vite development servers listen on loopback by default. Vite proxies `/api/*` to the FastAPI backend on port 8000. To make a development server reachable from another host, opt in explicitly and protect the resulting unauthenticated API exposure.
 
 ## Quality gates
 
@@ -50,7 +54,7 @@ make shellcheck   # reports "No tracked .sh files" until shell scripts are added
 make docker-build
 ```
 
-`make lint` is check-only; it no longer modifies source files. Use `make format` when you explicitly want Black to rewrite Python files.
+`make lint` is check-only; it no longer modifies source files. Use `make format` when you explicitly want Black to rewrite Python files. ShellCheck scans tracked shell scripts only, so dependency/vendor scripts under `.venv` or `node_modules` are never linted as project source.
 
 ## API
 
@@ -78,6 +82,8 @@ curl -X POST http://localhost:8000/api/v1/chat/completions \
 
 Streaming SSE is available at `/api/v1/chat/completions/stream`.
 
+`max_tokens` cannot exceed the configured `MAX_CONTEXT_LENGTH`. If the client omits generation parameters, the backend uses `TEMPERATURE`, `TOP_P`, and `MAX_TOKENS` from configuration.
+
 ### Local document retrieval
 
 Upload UTF-8 text:
@@ -101,8 +107,10 @@ Document indexing is lazy: ChromaDB and the embedding model initialize on the fi
 
 Copy `configs/.env.example` to the repository root as `.env`. Important settings include:
 
+- `HOST`, `PORT`, and Docker host publishing via `BIND_HOST`
 - `MODEL_NAME`, `MODEL_FILE`, `MODEL_PATH`
 - `N_THREADS`, `N_BATCH`, `MAX_CONTEXT_LENGTH`
+- `TEMPERATURE`, `TOP_P`, `MAX_TOKENS`
 - `CHROMA_DB_PATH`, `EMBEDDING_MODEL`, `RAG_CHUNK_SIZE`, `RAG_CHUNK_OVERLAP`
 - `MAX_UPLOAD_BYTES`
 - `ALLOWED_ORIGINS`
@@ -111,9 +119,11 @@ Copy `configs/.env.example` to the repository root as `.env`. Important settings
 
 ## CI behavior
 
-CI is intentionally blocking. Python lint/type/test/security failures, frontend lint/build/audit failures, Compose validation, and Docker build failures now fail the workflow instead of being hidden behind `|| true` or `|| echo`.
+CI is intentionally blocking. Python lint/type/test/security failures, frontend lint/build/audit failures, Compose validation, and Docker build failures fail the workflow instead of being hidden behind `|| true` or `|| echo`.
 
 The repository currently contains no tracked `.sh` scripts, so ShellCheck correctly reports that there is nothing to scan. The CI job becomes active automatically if shell scripts are added later.
+
+The frontend still needs a committed `frontend/package-lock.json` for fully reproducible npm installs. Until that lockfile is generated and committed, CI and Docker emit/install from the exact top-level versions in `package.json`, but transitive npm resolution can still change.
 
 ## License
 

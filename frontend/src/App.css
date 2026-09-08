@@ -76,8 +76,13 @@
   color: white;
 }
 
-.clear-btn:hover {
+.clear-btn:hover:not(:disabled) {
   background-color: #d32f2f;
+}
+
+.clear-btn:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
 }
 
 .chat-container {

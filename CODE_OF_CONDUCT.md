@@ -58,13 +58,15 @@ representative at an online or offline event.
 
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported to the community leaders responsible for enforcement at
-[INSERT CONTACT METHOD].
-All complaints will be reviewed and investigated promptly and fairly.
+Instances of abusive, harassing, or otherwise unacceptable behavior should be
+reported privately to the repository maintainer, `@cvsz`. If no private contact
+channel is published, open a public issue containing only a request for a private
+contact method. Do not include incident details, personal data, or other sensitive
+information in that public issue.
 
-All community leaders are obligated to respect the privacy and security of the
-reporter of any incident.
+All complaints will be reviewed and investigated promptly and fairly. Community
+leaders are obligated to respect the privacy and security of the reporter of any
+incident.
 
 ## Enforcement Guidelines
 
@@ -109,8 +111,8 @@ Violating these terms may lead to a permanent ban.
 standards, including sustained inappropriate behavior, harassment of an
 individual, or aggression toward or disparagement of classes of individuals.
 
-**Consequence**: A permanent ban from any sort of public interaction within
-the community.
+**Consequence**: A permanent ban from any sort of public interaction within the
+community.
 
 ## Attribution
 
