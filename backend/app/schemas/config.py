@@ -1,9 +1,10 @@
 from functools import lru_cache
+from typing import ClassVar
 
 from pydantic import Field, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from app import __version__
-from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -18,11 +19,11 @@ class Settings(BaseSettings):
 
     # Application
     APP_NAME: str = "Qwen LLM App"
-    APP_VERSION: str = __version__
+    APP_VERSION: ClassVar[str] = __version__
     DEBUG: bool = False
 
     # Server
-    HOST: str = "0.0.0.0"
+    HOST: str = "127.0.0.1"
     PORT: int = Field(default=8000, ge=1, le=65535)
 
     # Model
@@ -58,6 +59,8 @@ class Settings(BaseSettings):
     def validate_cross_field_settings(self) -> "Settings":
         if not self.MODEL_FILE.lower().endswith(".gguf"):
             raise ValueError("MODEL_FILE must point to a .gguf file")
+        if self.MAX_TOKENS > self.MAX_CONTEXT_LENGTH:
+            raise ValueError("MAX_TOKENS must not exceed MAX_CONTEXT_LENGTH")
         if self.RAG_CHUNK_OVERLAP >= self.RAG_CHUNK_SIZE:
             raise ValueError("RAG_CHUNK_OVERLAP must be smaller than RAG_CHUNK_SIZE")
         if not self.allowed_origins_list:

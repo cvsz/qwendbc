@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 from app.routers.chat import get_llm_service
-from app.schemas.config import Settings
+from app.schemas.config import Settings, settings
 from app.services.llm_service import llm_service
 
 
@@ -117,6 +117,10 @@ def test_streaming_completion_terminates_with_done(client: TestClient) -> None:
         {"messages": [{"role": "user", "content": ""}]},
         {"messages": [{"role": "user", "content": "Hello"}], "temperature": None},
         {"messages": [{"role": "user", "content": "Hello"}], "max_tokens": 0},
+        {
+            "messages": [{"role": "user", "content": "Hello"}],
+            "max_tokens": settings.MAX_CONTEXT_LENGTH + 1,
+        },
     ],
 )
 def test_chat_request_validation(client: TestClient, payload: dict[str, Any]) -> None:
@@ -130,8 +134,15 @@ def test_llm_service_singleton() -> None:
 
 def test_default_settings_are_valid() -> None:
     config = Settings(_env_file=None)
+    assert config.HOST == "127.0.0.1"
     assert config.N_THREADS > 0
     assert config.MAX_CONTEXT_LENGTH > 0
+    assert config.MAX_TOKENS <= config.MAX_CONTEXT_LENGTH
     assert config.MODEL_FILE.endswith(".gguf")
     assert config.RAG_CHUNK_OVERLAP < config.RAG_CHUNK_SIZE
     assert config.allowed_origins_list
+
+
+def test_settings_reject_max_tokens_above_context() -> None:
+    with pytest.raises(ValueError, match="MAX_TOKENS"):
+        Settings(_env_file=None, MAX_CONTEXT_LENGTH=1024, MAX_TOKENS=2048)

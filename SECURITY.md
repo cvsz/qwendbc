@@ -27,8 +27,9 @@ QwenDBC is designed primarily for local/private use. The application currently p
 - Pydantic request/config validation;
 - explicit CORS origin configuration;
 - local model execution;
+- loopback-only Docker and development bind defaults;
 - CodeQL, dependency review, Dependabot, `pip-audit`, and `npm audit` automation;
-- non-root secret handling guidance through an ignored local `.env`.
+- local secret handling guidance through an ignored `.env`.
 
 The application **does not currently implement**:
 
@@ -38,7 +39,7 @@ The application **does not currently implement**:
 - secure user sessions;
 - tenant isolation.
 
-Therefore, do not expose the FastAPI backend directly to an untrusted network. Put it behind an authenticated reverse proxy, VPN, zero-trust access layer, or equivalent control if remote access is required.
+Therefore, do not expose either the FastAPI backend or the frontend's `/api/` reverse proxy to an untrusted network. Docker uses `BIND_HOST=127.0.0.1` by default. If remote access is required, put the application behind an authenticated reverse proxy, VPN, zero-trust access layer, or equivalent control before changing the bind address.
 
 ## Secret handling
 
@@ -52,6 +53,7 @@ Local GGUF models and vector-store data may also contain sensitive or proprietar
 - Keep lockfiles committed where the ecosystem supports them.
 - Review model repository provenance before changing `MODEL_NAME` / `MODEL_FILE`.
 - Treat downloaded models and embedding models as third-party supply-chain artifacts.
+- Do not treat a workflow as validated when GitHub Actions is disabled or no workflow run exists for the commit.
 
 ## Security-related pull requests
 

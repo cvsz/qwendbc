@@ -100,6 +100,13 @@ class LLMService:
         formatted_parts.append("<|im_start|>assistant\n")
         return "".join(formatted_parts)
 
+    def _get_loaded_model_locked(self) -> Llama:
+        """Return the active model while the caller holds the inference lock."""
+        model = self.model
+        if not self.is_loaded or model is None:
+            raise RuntimeError("Model not loaded")
+        return model
+
     def generate(
         self,
         messages: list[dict[str, str]],
@@ -107,13 +114,11 @@ class LLMService:
         top_p: float = 0.9,
         max_tokens: int = 2048,
     ) -> dict[str, Any]:
-        if not self.is_loaded or self.model is None:
-            raise RuntimeError("Model not loaded")
-
         prompt = self._format_messages(messages)
         with self._inference_lock:
+            model = self._get_loaded_model_locked()
             try:
-                output = self.model(
+                output = model(
                     prompt=prompt,
                     max_tokens=max_tokens,
                     temperature=temperature,
@@ -154,16 +159,14 @@ class LLMService:
         top_p: float = 0.9,
         max_tokens: int = 2048,
     ) -> Generator[dict[str, Any], None, None]:
-        if not self.is_loaded or self.model is None:
-            raise RuntimeError("Model not loaded")
-
         prompt = self._format_messages(messages)
         completion_id = f"chatcmpl-{uuid.uuid4().hex}"
         created_time = int(time.time())
 
         with self._inference_lock:
+            model = self._get_loaded_model_locked()
             try:
-                for chunk in self.model(
+                for chunk in model(
                     prompt=prompt,
                     max_tokens=max_tokens,
                     temperature=temperature,
@@ -214,13 +217,14 @@ class LLMService:
                     logger.info("Model unloaded")
 
     def get_model_info(self) -> dict[str, Any]:
-        return {
-            "name": settings.MODEL_NAME,
-            "path": str(self.model_path) if self.model_path else None,
-            "context_length": settings.MAX_CONTEXT_LENGTH,
-            "threads": settings.N_THREADS,
-            "loaded": self.is_loaded,
-        }
+        with self._lock:
+            return {
+                "name": settings.MODEL_NAME,
+                "path": str(self.model_path) if self.model_path else None,
+                "context_length": settings.MAX_CONTEXT_LENGTH,
+                "threads": settings.N_THREADS,
+                "loaded": self.is_loaded,
+            }
 
 
 llm_service = LLMService()

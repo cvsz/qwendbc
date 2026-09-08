@@ -2,6 +2,12 @@
 
 The repository workflows are intended to be blocking validation, not best-effort reporting.
 
+## Actions availability
+
+For a newly created fork, verify that GitHub Actions is enabled under **Settings → Actions → General**. Workflow YAML cannot enable Actions for a repository by itself. If a matching push or pull request produces no workflow run at all, check this repository setting before treating the commit as validated.
+
+The CI and CodeQL workflows also expose `workflow_dispatch`, so maintainers can run them manually from the Actions tab after Actions is enabled.
+
 ## Recommended `main` ruleset
 
 Enable a branch/ruleset for `main` with at least:
@@ -31,14 +37,14 @@ Dependabot is configured for:
 - GitHub Actions;
 - Docker images.
 
-Automatic Dependabot merging is intentionally disabled in this remediation until `main` has required CI rules. Re-enable auto-merge only after protected checks are enforced.
+Automatic Dependabot merging is intentionally disabled until `main` has required CI rules. Re-enable auto-merge only after protected checks are enforced.
 
 ## Security automation
 
 - CodeQL runs for Python and JavaScript/TypeScript.
 - Dependency Review blocks high-severity dependency changes according to its workflow policy.
-- CI runs `pip-audit` and `npm audit` as blocking checks.
+- CI and release validation run `pip-audit` and `npm audit` as blocking checks.
 
 ## Validation after applying repository rules
 
-Open a test pull request and verify that GitHub blocks merging when any required job fails. Do not rely on a green workflow that suppresses command exit codes.
+Open a test pull request and verify that GitHub blocks merging when any required job fails. Do not rely on a green workflow that suppresses command exit codes, and do not treat a commit with no workflow run as CI-validated.
