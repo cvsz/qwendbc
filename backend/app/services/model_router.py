@@ -1,6 +1,7 @@
 """Routing between the local model service and approved free remote providers."""
 
 from collections.abc import Iterator
+from datetime import datetime, timezone
 import time
 import uuid
 from typing import Any
@@ -29,6 +30,7 @@ class ModelRouter:
         self.config = config
         self.providers = providers if providers is not None else self._build_providers()
         self._catalog_cache: dict[str, tuple[float, list[ProviderModel]]] = {}
+        self._catalog_cached_at: dict[str, datetime] = {}
 
     def _build_providers(self) -> list[OpenAICompatibleProvider]:
         return [
@@ -47,6 +49,7 @@ class ModelRouter:
                 self.config.OPENCODE_FREE_MODEL,
                 (),
                 self.config.REMOTE_REQUEST_TIMEOUT_SECONDS,
+                requires_api_key=True,
             ),
             OpenAICompatibleProvider(
                 "openrouter",
@@ -55,6 +58,7 @@ class ModelRouter:
                 self.config.OPENROUTER_MODEL,
                 (),
                 self.config.REMOTE_REQUEST_TIMEOUT_SECONDS,
+                requires_api_key=True,
             ),
         ]
 
@@ -95,6 +99,7 @@ class ModelRouter:
         except ProviderError:
             models = []
         self._catalog_cache[provider.name] = (time.monotonic(), list(models))
+        self._catalog_cached_at[provider.name] = datetime.now(timezone.utc)
         return list(models)
 
     def list_models(self, refresh: bool = False) -> ModelsResponse:
@@ -126,12 +131,45 @@ class ModelRouter:
                         context_length=model.context_length,
                     )
                 )
-        return ModelsResponse(data=data, providers=self._provider_statuses())
+        return ModelsResponse(
+            data=data,
+            providers=self._provider_statuses(),
+            cached_at=max(
+                self._catalog_cached_at.values(),
+                default=datetime.now(timezone.utc),
+            ),
+        )
 
     def get_model_info(self) -> dict[str, Any]:
         info = dict(self.local_service.get_model_info())
         info["providers"] = [status.model_dump() for status in self._provider_statuses()]
+        info.update(self.routing_state())
         return info
+
+    def routing_state(self) -> dict[str, Any]:
+        """Return the current non-secret route and fallback state."""
+        statuses = self._provider_statuses()
+        active = next((status for status in statuses if status.available), None)
+        selected_model: str | None = None
+        if active is not None:
+            if active.name == "local":
+                selected_model = str(self.local_service.get_model_info()["name"])
+            else:
+                provider = self._provider_by_name(active.name)
+                if provider is not None:
+                    selected_model = str(provider.default_model)
+        return {
+            "active_provider": active.name if active is not None else None,
+            "selected_model": selected_model,
+            "remote_models_enabled": self._remote_enabled,
+            "fallback_available": bool(self.local_service.is_loaded),
+        }
+
+    def validate_request(self, provider: str | None = None, model: str | None = None) -> None:
+        """Validate that a request has at least one route before opening a stream."""
+        selections = self._selection(provider, model)
+        if not any(name != "local" or self.local_service.is_loaded for name, _, _ in selections):
+            raise RuntimeError("Model not loaded")
 
     def _is_eligible(self, provider: Any, model: str) -> bool:
         if model in provider.free_model_ids:
@@ -141,7 +179,12 @@ class ModelRouter:
                 return item.free and item.supports_chat
         return False
 
-    def _selection(self, provider: str | None, model: str | None) -> list[tuple[str, Any | None, str | None]]:
+    def _is_eligible_or_dynamic_default(self, provider: Any, model: str) -> bool:
+        return provider.name == "opencode" and model == "auto" or self._is_eligible(provider, model)
+
+    def _selection(
+        self, provider: str | None, model: str | None
+    ) -> list[tuple[str, Any | None, str | None]]:
         if provider == "local":
             local_name = str(self.local_service.get_model_info()["name"])
             if model is not None and model != local_name:
@@ -153,13 +196,17 @@ class ModelRouter:
             if selected is None or not self._remote_enabled or not selected.is_configured():
                 raise ValueError("Requested provider is disabled")
             selected_model = model or selected.default_model
-            if model is not None and not self._is_eligible(selected, selected_model):
+            if not self._is_eligible_or_dynamic_default(selected, selected_model):
                 raise ValueError("Requested model is not an eligible free text model")
             return [(provider, selected, selected_model)]
 
         if model:
             for candidate in self.providers:
-                if self._remote_enabled and candidate.is_configured() and self._is_eligible(candidate, model):
+                if (
+                    self._remote_enabled
+                    and candidate.is_configured()
+                    and self._is_eligible(candidate, model)
+                ):
                     return [(candidate.name, candidate, model)]
             local_name = str(self.local_service.get_model_info()["name"])
             if model == local_name:
@@ -172,7 +219,12 @@ class ModelRouter:
                 selections.append(("local", None, None))
                 continue
             selected = self._provider_by_name(name)
-            if self._remote_enabled and selected is not None and selected.is_configured():
+            if (
+                self._remote_enabled
+                and selected is not None
+                and selected.is_configured()
+                and self._is_eligible_or_dynamic_default(selected, selected.default_model)
+            ):
                 selections.append((name, selected, None))
         return selections
 
@@ -227,7 +279,9 @@ class ModelRouter:
                         top_p=top_p,
                         max_tokens=max_tokens,
                     )
-                    response_model = str(response.get("model") or self.local_service.get_model_info()["name"])
+                    response_model = str(
+                        response.get("model") or self.local_service.get_model_info()["name"]
+                    )
                 else:
                     assert selected is not None
                     with guarded_remote_call():
@@ -238,7 +292,9 @@ class ModelRouter:
                             top_p=top_p,
                             max_tokens=max_tokens,
                         )
-                    response_model = str(response.get("model") or selected_model or selected.default_model)
+                    response_model = str(
+                        response.get("model") or selected_model or selected.default_model
+                    )
                 return self._decorate(response, name, response_model, attempt > 0, rag_sources)
             except ProviderError as error:
                 last_error = error
@@ -296,10 +352,10 @@ class ModelRouter:
             except HTTPException:
                 raise
             except Exception:
-                error = ProviderError("Free model provider is unavailable", retryable=True)
+                fallback_error = ProviderError("Free model provider is unavailable", retryable=True)
                 if emitted_content:
-                    raise error
-                last_error = error
+                    raise fallback_error
+                last_error = fallback_error
         if not self.local_service.is_loaded:
             raise RuntimeError("Model not loaded")
         raise last_error or ProviderError("No free model provider is available", retryable=True)

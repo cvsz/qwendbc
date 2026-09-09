@@ -1,9 +1,9 @@
 import threading
 import time
 import uuid
-from collections.abc import Generator
+from collections.abc import Generator, Iterator
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from huggingface_hub import hf_hub_download
 from llama_cpp import Llama
@@ -133,13 +133,16 @@ class LLMService:
         with self._inference_lock:
             model = self._get_loaded_model_locked()
             try:
-                output = model(
-                    prompt=prompt,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                    top_p=top_p,
-                    stop=["<|im_end|>", "<|endoftext|>"],
-                    echo=False,
+                output = cast(
+                    dict[str, Any],
+                    model(
+                        prompt=prompt,
+                        max_tokens=max_tokens,
+                        temperature=temperature,
+                        top_p=top_p,
+                        stop=["<|im_end|>", "<|endoftext|>"],
+                        echo=False,
+                    ),
                 )
                 usage = output.get("usage", {})
                 return {
@@ -181,14 +184,17 @@ class LLMService:
         with self._inference_lock:
             model = self._get_loaded_model_locked()
             try:
-                for chunk in model(
-                    prompt=prompt,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                    top_p=top_p,
-                    stop=["<|im_end|>", "<|endoftext|>"],
-                    stream=True,
-                    echo=False,
+                for chunk in cast(
+                    Iterator[dict[str, Any]],
+                    model(
+                        prompt=prompt,
+                        max_tokens=max_tokens,
+                        temperature=temperature,
+                        top_p=top_p,
+                        stop=["<|im_end|>", "<|endoftext|>"],
+                        stream=True,
+                        echo=False,
+                    ),
                 ):
                     choice = chunk["choices"][0]
                     text = choice.get("text", "")

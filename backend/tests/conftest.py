@@ -8,7 +8,6 @@ tests replace their runtime behavior with fakes.
 import sys
 from types import ModuleType
 
-
 if "huggingface_hub" not in sys.modules:
     huggingface_hub = ModuleType("huggingface_hub")
     huggingface_hub.hf_hub_download = lambda **_: ""
@@ -69,7 +68,9 @@ if "python_multipart" not in sys.modules:
                     name, _, value = header.partition(b":")
                     self.callbacks["on_header_field"](name, 0, len(name))  # type: ignore[operator]
                     value = value.strip()
-                    self.callbacks["on_header_value"](value, 0, len(value))  # type: ignore[operator]
+                    self.callbacks["on_header_value"](
+                        value, 0, len(value)
+                    )  # type: ignore[operator]
                     self.callbacks["on_header_end"]()  # type: ignore[operator]
                 self.callbacks["on_headers_finished"]()  # type: ignore[operator]
                 if body:

@@ -31,9 +31,7 @@ class RAGService:
 
             logger.info("Initializing RAG store at %s", settings.CHROMA_DB_PATH)
             self._client = chromadb.PersistentClient(path=settings.CHROMA_DB_PATH)
-            self._collection = self._client.get_or_create_collection(
-                name=settings.RAG_COLLECTION
-            )
+            self._collection = self._client.get_or_create_collection(name=settings.RAG_COLLECTION)
             self._embedding_model = SentenceTransformer(settings.EMBEDDING_MODEL)
 
     @staticmethod
@@ -122,9 +120,7 @@ class RAGService:
                         "document": documents[index] or "",
                         "metadata": metadatas[index] or {},
                         "distance": (
-                            float(distances[index])
-                            if distances[index] is not None
-                            else None
+                            float(distances[index]) if distances[index] is not None else None
                         ),
                     }
                 )

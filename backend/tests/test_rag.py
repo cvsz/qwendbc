@@ -131,7 +131,9 @@ def test_streaming_chat_rag_injects_labeled_context_before_completion(client: Te
         local_service = type("Local", (), {"is_loaded": True})()
         _remote_enabled = False
 
-        def stream(self, messages: list[dict[str, Any]], **_: Any) -> Generator[dict[str, Any], None, None]:
+        def stream(
+            self, messages: list[dict[str, Any]], **_: Any
+        ) -> Generator[dict[str, Any], None, None]:
             captured["messages"] = messages
             yield {
                 "id": "chatcmpl-rag",

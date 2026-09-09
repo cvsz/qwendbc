@@ -73,11 +73,14 @@ async def health_check() -> dict[str, object]:
         "model_loaded": llm_service.is_loaded,
         "timestamp": datetime.now(timezone.utc),
         "providers": [item.model_dump() for item in model_router.provider_statuses()],
+        **model_router.routing_state(),
     }
 
 
 @router.get("/model/info", response_model=ModelInfo)
-async def get_model_info(model_router: ModelRouter = Depends(get_model_router)) -> dict[str, object]:
+async def get_model_info(
+    model_router: ModelRouter = Depends(get_model_router),
+) -> dict[str, object]:
     return model_router.get_model_info()
 
 
@@ -145,10 +148,20 @@ async def chat_completions_stream(
     rag: RAGService = Depends(get_rag_service),
     _: None = Depends(require_access),
 ) -> StreamingResponse:
-    if not model_router.local_service.is_loaded and not model_router._remote_enabled:
+    validate_request = getattr(model_router, "validate_request", None)
+    if callable(validate_request):
+        try:
+            validate_request(provider=request.provider, model=request.model)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    elif not model_router.local_service.is_loaded and not getattr(
+        model_router, "_remote_enabled", False
+    ):
         raise HTTPException(status_code=400, detail="Model not loaded")
 
-    messages, _ = await _inject_rag_context(
+    messages, _rag_sources = await _inject_rag_context(
         [message.model_dump() for message in request.messages], request, rag
     )
 

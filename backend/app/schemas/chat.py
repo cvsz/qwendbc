@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -45,6 +45,7 @@ class ModelsResponse(BaseModel):
     object: Literal["list"] = "list"
     data: list[ModelCatalogItem]
     providers: list[ProviderStatus]
+    cached_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ChatRoutingMetadata(BaseModel):
@@ -93,6 +94,10 @@ class HealthResponse(BaseModel):
     model_loaded: bool
     timestamp: datetime
     providers: list[ProviderStatus] = Field(default_factory=list)
+    active_provider: str | None = None
+    selected_model: str | None = None
+    remote_models_enabled: bool = False
+    fallback_available: bool = False
 
 
 class ModelInfo(BaseModel):
@@ -104,3 +109,7 @@ class ModelInfo(BaseModel):
     threads: int
     loaded: bool
     providers: list[ProviderStatus] = Field(default_factory=list)
+    active_provider: str | None = None
+    selected_model: str | None = None
+    remote_models_enabled: bool = False
+    fallback_available: bool = False

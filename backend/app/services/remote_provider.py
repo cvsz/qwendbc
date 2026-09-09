@@ -36,12 +36,15 @@ class OpenAICompatibleProvider:
         default_model: str,
         free_ids: Iterable[str],
         timeout_seconds: float,
+        *,
+        requires_api_key: bool = False,
     ) -> None:
         self.name = name.lower().strip()
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.default_model = default_model
         self.timeout_seconds = timeout_seconds
+        self.requires_api_key = requires_api_key
         owned_aliases = _ROUTE_ALIASES.get(self.name, frozenset())
         self._configured_free_ids = frozenset(
             model
@@ -51,14 +54,16 @@ class OpenAICompatibleProvider:
         self._catalog: list[ProviderModel] | None = None
 
     def is_configured(self) -> bool:
-        return bool(self.base_url and self.default_model)
+        return bool(
+            self.base_url
+            and self.default_model
+            and (not self.requires_api_key or self.api_key.strip())
+        )
 
     @property
     def free_model_ids(self) -> frozenset[str]:
         catalog_ids = frozenset(model.id for model in self._catalog or [])
         provider_ids = _ROUTE_ALIASES.get(self.name, frozenset())
-        if self.name == "opencode":
-            provider_ids = provider_ids | _OPENCODE_FREE_IDS
         return provider_ids | self._configured_free_ids | catalog_ids
 
     def list_models(self, refresh: bool = False) -> list[ProviderModel]:
@@ -148,7 +153,12 @@ class OpenAICompatibleProvider:
         if not self._is_zero(pricing.get("prompt")) or not self._is_zero(pricing.get("completion")):
             return None
         modalities = architecture.get("output_modalities")
-        if not isinstance(modalities, list) or set(modalities) != {"text"}:
+        text_modalities = (
+            {modality for modality in modalities if isinstance(modality, str)}
+            if isinstance(modalities, list)
+            else set()
+        )
+        if "text" not in text_modalities:
             return None
         if self.name == "opencode" and model_id not in self._opencode_allowlist:
             return None
@@ -230,6 +240,10 @@ class OpenAICompatibleProvider:
                 response = client.post(self._url(path), headers=self._headers(), json=payload)
                 response.raise_for_status()
                 decoded = response.json()
+        except json.JSONDecodeError as error:
+            raise ProviderError(
+                "Provider returned an invalid completion response", retryable=True
+            ) from error
         except httpx.HTTPError as error:
             raise self._provider_error(error) from error
         if not isinstance(decoded, dict):

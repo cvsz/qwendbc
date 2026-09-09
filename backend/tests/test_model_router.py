@@ -150,7 +150,9 @@ def test_stream_falls_back_only_before_first_content_chunk() -> None:
 
 def test_catalog_reports_only_non_secret_provider_status() -> None:
     router = ModelRouter(
-        FakeLocalService(loaded=False), make_settings(), providers=[FakeProvider("kilo", text="answer")]
+        FakeLocalService(loaded=False),
+        make_settings(),
+        providers=[FakeProvider("kilo", text="answer")],
     )
 
     catalog = router.list_models()
@@ -169,6 +171,7 @@ def test_catalog_reports_only_non_secret_provider_status() -> None:
         "configured": True,
         "available": True,
     }
+    assert catalog.cached_at.tzinfo is not None
     assert "key" not in repr(catalog).lower()
 
 
@@ -193,7 +196,9 @@ def test_catalog_refreshes_provider_after_the_router_ttl(monkeypatch: pytest.Mon
 
 def test_explicit_model_rejects_an_unknown_or_non_free_model() -> None:
     router = ModelRouter(
-        FakeLocalService(loaded=False), make_settings(), providers=[FakeProvider("kilo", text="answer")]
+        FakeLocalService(loaded=False),
+        make_settings(),
+        providers=[FakeProvider("kilo", text="answer")],
     )
 
     with pytest.raises(ValueError, match="eligible free"):
@@ -220,3 +225,41 @@ def test_explicit_provider_uses_its_default_when_no_model_is_requested() -> None
 
     assert result["choices"][0]["message"]["content"] == "answer"
     assert result["qwendbc"]["provider"] == "opencode"
+
+
+def test_automatic_mode_skips_a_paid_configured_default() -> None:
+    provider = FakeProvider("kilo", text="should not be used")
+    provider.default_model = "paid-model"
+    provider.free_model_ids = frozenset()
+    provider.list_models = lambda refresh=False: []
+    router = ModelRouter(FakeLocalService(loaded=True), make_settings(), providers=[provider])
+
+    result = router.complete([{"role": "user", "content": "hello"}], max_tokens=16)
+
+    assert result["qwendbc"]["provider"] == "local"
+
+
+def test_runtime_state_reports_non_secret_route_status() -> None:
+    router = ModelRouter(
+        FakeLocalService(loaded=True),
+        make_settings(),
+        providers=[FakeProvider("kilo", text="answer")],
+    )
+
+    assert router.routing_state() == {
+        "active_provider": "kilo",
+        "selected_model": "kilo-free",
+        "remote_models_enabled": True,
+        "fallback_available": True,
+    }
+
+
+def test_validate_request_rejects_when_no_route_is_available() -> None:
+    router = ModelRouter(
+        FakeLocalService(loaded=False),
+        Settings(_env_file=None, MODEL_MODE="local", REMOTE_MODELS_ENABLED=False),
+        providers=[],
+    )
+
+    with pytest.raises(RuntimeError, match="Model not loaded"):
+        router.validate_request()

@@ -3,7 +3,12 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
-from app.schemas.chat import DocumentQuery, DocumentSearchResponse, DocumentUploadResponse
+from app.schemas.chat import (
+    DocumentQuery,
+    DocumentSearchResponse,
+    DocumentSearchResult,
+    DocumentUploadResponse,
+)
 from app.schemas.config import settings
 from app.services.access_control import require_access
 from app.services.rag_service import RAGService, rag_service
@@ -69,4 +74,6 @@ async def search_documents(
     except Exception as exc:
         logger.exception("Document search failed")
         raise HTTPException(status_code=503, detail="Document index is unavailable") from exc
-    return DocumentSearchResponse(results=results)
+    return DocumentSearchResponse(
+        results=[DocumentSearchResult.model_validate(result) for result in results]
+    )

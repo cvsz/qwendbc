@@ -37,7 +37,9 @@ def test_no_token_keeps_local_operation_compatible(client: TestClient) -> None:
     assert response.json() == {"ok": True}
 
 
-def test_invalid_bearer_token_is_rejected(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_invalid_bearer_token_is_rejected(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setattr(settings, "QWENDBC_ACCESS_TOKEN", "expected")
 
     response = client.get("/protected", headers={"Authorization": "Bearer wrong"})
@@ -56,7 +58,9 @@ def test_missing_bearer_token_is_rejected_when_access_token_is_configured(
     assert response.status_code == 401
 
 
-def test_rate_limit_returns_retry_after(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_rate_limit_returns_retry_after(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
     monkeypatch.setattr(settings, "QWENDBC_ACCESS_TOKEN", "expected")
     monkeypatch.setattr(settings, "REMOTE_RATE_LIMIT_PER_MINUTE", 1)
     headers = {"Authorization": "Bearer expected"}

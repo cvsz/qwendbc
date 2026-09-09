@@ -106,7 +106,7 @@ function App() {
 
   const selectableProviders = useMemo(() => {
     const names = providerStatuses
-      .filter((provider) => provider.name !== "local" || provider.available)
+      .filter((provider) => provider.available)
       .map((provider) => provider.name);
     return ["auto", ...new Set(names)];
   }, [providerStatuses]);
@@ -487,7 +487,9 @@ function App() {
                 <span className={`status-chip ${statusClass}`}>{statusText(modelStatus, remoteReady)}</span>
               </div>
               <div className="runtime-readout" role="status" aria-live="polite">
-                <span className="runtime-model">{health?.model_name || "Qwen GGUF"}</span>
+                <span className="runtime-model">
+                  {health?.selected_model || health?.model_name || "Qwen GGUF"}
+                </span>
                 <span>{localLoaded ? "Loaded in local memory" : remoteReady ? "Remote access available" : "No serving model loaded"}</span>
               </div>
               {showLoadLocal && (

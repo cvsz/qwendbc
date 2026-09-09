@@ -60,6 +60,27 @@ def test_kilo_catalog_keeps_only_free_text_models(monkeypatch: pytest.MonkeyPatc
     ]
 
 
+def test_catalog_accepts_text_capability_with_additional_output_modalities(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = make_provider("kilo", "https://kilo.test", default_model="kilo-auto/free")
+    monkeypatch.setattr(
+        provider,
+        "_get_json",
+        lambda _: {
+            "data": [
+                {
+                    "id": "mixed/text-image",
+                    "pricing": {"prompt": "0", "completion": "0"},
+                    "architecture": {"output_modalities": ["text", "image"]},
+                }
+            ]
+        },
+    )
+
+    assert [model.id for model in provider.list_models(refresh=True)] == ["mixed/text-image"]
+
+
 def test_catalog_accepts_raw_arrays_and_returns_empty_for_malformed_data(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -103,6 +124,31 @@ def test_route_aliases_belong_only_to_their_own_provider() -> None:
     assert "kilo-auto/free" not in router.free_model_ids
     assert "kilo-auto/free" not in opencode.free_model_ids
     assert "openrouter/free" not in opencode.free_model_ids
+
+
+def test_opencode_allowlist_is_backed_by_the_current_catalog(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = make_provider("opencode", "https://opencode.test", default_model="auto")
+    monkeypatch.setattr(provider, "_get_json", lambda _: {"data": []})
+
+    provider.list_models(refresh=True)
+
+    assert "mimo-v2.5-free" not in provider.free_model_ids
+
+
+def test_keyed_provider_without_a_key_is_not_configured() -> None:
+    provider = OpenAICompatibleProvider(
+        name="openrouter",
+        base_url="https://router.test",
+        api_key=" ",
+        default_model="openrouter/free",
+        free_ids=(),
+        timeout_seconds=12,
+        requires_api_key=True,
+    )
+
+    assert provider.is_configured() is False
 
 
 def test_caller_supplied_free_ids_cannot_cross_provider_route_alias_ownership() -> None:
@@ -192,6 +238,29 @@ def test_complete_rejects_missing_choices_with_safe_error(monkeypatch: pytest.Mo
         provider.complete([{"role": "user", "content": "hi"}], None, 0.7, 0.9, 32)
 
     assert raised.value.retryable is True
+
+
+def test_complete_rejects_malformed_json_with_safe_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = make_provider("kilo", "https://kilo.test", default_model="kilo-auto/free")
+    request = httpx.Request("POST", "https://kilo.test/chat/completions")
+    response = httpx.Response(200, request=request, content=b"{")
+
+    class FakeClient:
+        def __enter__(self) -> "FakeClient":
+            return self
+
+        def __exit__(self, *_: object) -> bool:
+            return False
+
+        def post(self, *_: object, **__: object) -> httpx.Response:
+            return response
+
+    monkeypatch.setattr("app.services.remote_provider.httpx.Client", lambda **_: FakeClient())
+
+    with pytest.raises(ProviderError, match="invalid completion response"):
+        provider.complete([{"role": "user", "content": "hi"}], None, 0.7, 0.9, 32)
 
 
 def test_http_429_is_retryable_and_401_is_not(monkeypatch: pytest.MonkeyPatch) -> None:

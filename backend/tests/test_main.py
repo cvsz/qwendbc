@@ -69,6 +69,10 @@ def test_health_check(client: TestClient) -> None:
     data = response.json()
     assert data["status"] == "healthy"
     assert "timestamp" in data
+    assert data["remote_models_enabled"] is False
+    assert data["active_provider"] is None
+    assert data["selected_model"] is None
+    assert data["fallback_available"] is False
 
 
 def test_model_info_is_available_when_unloaded(client: TestClient) -> None:
@@ -133,6 +137,22 @@ def test_streaming_completion_terminates_with_done(client: TestClient) -> None:
     )
     assert response.status_code == 200
     assert "data: [DONE]" in response.text
+
+
+def test_streaming_completion_requires_an_available_route(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = FakeLLMService(loaded=False)
+    app.dependency_overrides[get_llm_service] = lambda: fake
+    monkeypatch.setattr(settings, "MODEL_MODE", "local")
+    monkeypatch.setattr(settings, "REMOTE_MODELS_ENABLED", False)
+
+    response = client.post(
+        "/api/v1/chat/completions/stream",
+        json={"messages": [{"role": "user", "content": "Hello"}]},
+    )
+
+    assert response.status_code == 400
 
 
 @pytest.mark.parametrize(
