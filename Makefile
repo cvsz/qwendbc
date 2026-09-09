@@ -5,6 +5,9 @@ PYTHON_SYSTEM ?= python3
 NPM ?= npm
 DOCKER ?= docker
 DEV_HOST ?= 127.0.0.1
+BACKEND_HOST_PORT ?= 8000
+FRONTEND_HOST_PORT ?= 3000
+COMPOSE_ENV := BACKEND_HOST_PORT=$(BACKEND_HOST_PORT) FRONTEND_HOST_PORT=$(FRONTEND_HOST_PORT)
 VENV := .venv
 PYTHON := $(VENV)/bin/python
 PIP := $(VENV)/bin/pip
@@ -15,7 +18,7 @@ MYPY := $(VENV)/bin/mypy
 PIP_AUDIT := $(VENV)/bin/pip-audit
 UVICORN := $(VENV)/bin/uvicorn
 
-.PHONY: help setup setup-backend setup-frontend init-env dev backend frontend \
+.PHONY: help install full-stack-install setup setup-backend setup-frontend init-env dev backend frontend \
         test test-backend test-frontend lint lint-backend lint-frontend format \
         security shellcheck docker-build docker-up docker-down docker-logs \
         docker-clean health model-info clean all
@@ -23,6 +26,7 @@ UVICORN := $(VENV)/bin/uvicorn
 help:
 	@printf '%s\n' \
 	  'QwenDBC targets:' \
+	  '  make install        Build/start Docker full stack (override host ports if needed)' \
 	  '  make setup          Install backend + frontend dependencies and create .env' \
 	  '  make dev            Run backend and frontend development servers' \
 	  '  make test           Run backend tests and frontend lint/build checks' \
@@ -33,6 +37,18 @@ help:
 	  '  make docker-build   Validate Compose and build both images' \
 	  '  make docker-up      Start the application with Docker Compose' \
 	  '  make clean          Remove local build/test artifacts (keeps lockfiles)'
+
+install: full-stack-install
+
+full-stack-install: init-env
+	$(COMPOSE_ENV) $(DOCKER) compose config --quiet
+	$(COMPOSE_ENV) $(DOCKER) compose up -d --build --wait
+	@printf '%s\n' \
+	  'QwenDBC full stack is running:' \
+	  '  Frontend: http://localhost:$(FRONTEND_HOST_PORT)' \
+	  '  Backend:  http://localhost:$(BACKEND_HOST_PORT)' \
+	  '  API docs: http://localhost:$(BACKEND_HOST_PORT)/docs' \
+	  'Model files are downloaded only when the model-load endpoint is called.'
 
 $(VENV)/bin/python:
 	$(PYTHON_SYSTEM) -m venv $(VENV)
@@ -103,26 +119,26 @@ shellcheck:
 	  fi
 
 docker-build:
-	$(DOCKER) compose config --quiet
-	$(DOCKER) compose build
+	$(COMPOSE_ENV) $(DOCKER) compose config --quiet
+	$(COMPOSE_ENV) $(DOCKER) compose build
 
 docker-up:
-	$(DOCKER) compose up -d --build
+	$(COMPOSE_ENV) $(DOCKER) compose up -d --build
 
 docker-down:
-	$(DOCKER) compose down --remove-orphans
+	$(COMPOSE_ENV) $(DOCKER) compose down --remove-orphans
 
 docker-logs:
-	$(DOCKER) compose logs -f
+	$(COMPOSE_ENV) $(DOCKER) compose logs -f
 
 docker-clean:
-	$(DOCKER) compose down -v --remove-orphans
+	$(COMPOSE_ENV) $(DOCKER) compose down -v --remove-orphans
 
 health:
-	@curl -fsS http://localhost:8000/api/v1/health | $(PYTHON_SYSTEM) -m json.tool
+	@curl -fsS http://localhost:$(BACKEND_HOST_PORT)/api/v1/health | $(PYTHON_SYSTEM) -m json.tool
 
 model-info:
-	@curl -fsS http://localhost:8000/api/v1/model/info | $(PYTHON_SYSTEM) -m json.tool
+	@curl -fsS http://localhost:$(BACKEND_HOST_PORT)/api/v1/model/info | $(PYTHON_SYSTEM) -m json.tool
 
 clean:
 	rm -rf .pytest_cache .mypy_cache coverage_html htmlcov .coverage coverage.xml

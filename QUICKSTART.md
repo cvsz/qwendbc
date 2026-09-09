@@ -5,6 +5,14 @@
 Prerequisites: Docker Compose 2.24 or newer.
 
 ```bash
+make install
+```
+
+This creates `.env` from `configs/.env.example` when needed, builds both
+services, starts the full stack, and waits for the health checks. Use
+`make docker-down` to stop it. The lower-level equivalent remains:
+
+```bash
 cp configs/.env.example .env
 docker compose up --build
 ```
@@ -16,6 +24,9 @@ Open:
 - OpenAPI: http://localhost:8000/docs
 
 Docker publishes both ports on `127.0.0.1` by default. Keep `BIND_HOST=127.0.0.1` unless you have an authenticated reverse proxy, VPN, zero-trust access layer, or equivalent network control. Setting `BIND_HOST=0.0.0.0` also exposes the frontend's `/api/` reverse proxy, not just the static UI.
+
+If ports 8000 or 3000 are already occupied, use for example
+`make install BACKEND_HOST_PORT=8100 FRONTEND_HOST_PORT=3100`.
 
 The model is downloaded only when you click **Load Model** or call the model-load endpoint. The GGUF is stored in the Docker `model_data` volume and is not committed to Git.
 

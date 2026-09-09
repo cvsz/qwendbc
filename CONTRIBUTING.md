@@ -15,10 +15,12 @@ Thank you for contributing to QwenDBC. Keep changes focused, testable, and align
 From the repository root:
 
 ```bash
-make setup
+make install
 ```
 
-This creates `.venv`, installs backend development dependencies, installs frontend dependencies, and creates a local `.env` from `configs/.env.example` when one does not already exist.
+This creates a local `.env` from `configs/.env.example` when needed, builds
+both Docker services, starts the full stack, and waits for the health checks.
+For local development dependencies instead, use `make setup`.
 
 Run both development servers with:
 

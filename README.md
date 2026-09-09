@@ -1,5 +1,10 @@
 # QwenDBC
 
+[![CI](https://github.com/cvsz/qwendbc/actions/workflows/ci-cd.yml/badge.svg?branch=main)](https://github.com/cvsz/qwendbc/actions/workflows/ci-cd.yml)
+[![CodeQL Analysis](https://github.com/cvsz/qwendbc/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/cvsz/qwendbc/actions/workflows/codeql.yml)
+[![Dependency Review](https://github.com/cvsz/qwendbc/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/cvsz/qwendbc/actions/workflows/dependency-review.yml)
+[![Release](https://github.com/cvsz/qwendbc/actions/workflows/release.yml/badge.svg)](https://github.com/cvsz/qwendbc/actions/workflows/release.yml)
+
 QwenDBC is a local-first FastAPI + React application for running a GGUF Qwen model with `llama.cpp`, plus local document ingestion and semantic search with ChromaDB.
 
 ## Current stack
@@ -16,8 +21,18 @@ QwenDBC is a local-first FastAPI + React application for running a GGUF Qwen mod
 ## Quick start with Docker
 
 ```bash
+make install
+```
+
+`make install` creates `.env` from `configs/.env.example` when needed, validates
+the Compose configuration, builds both images, starts the full stack, and waits
+for the services to become healthy. Adjust `N_THREADS` and other settings in
+`.env` before running it if needed. To stop the stack, use `make docker-down`.
+
+The equivalent lower-level command is:
+
+```bash
 cp configs/.env.example .env
-# Adjust N_THREADS and other settings if needed.
 docker compose up --build
 ```
 
@@ -28,6 +43,14 @@ Open:
 - OpenAPI docs: http://localhost:8000/docs
 
 Both published ports bind to `127.0.0.1` by default. `BIND_HOST=0.0.0.0` intentionally exposes the frontend and its `/api/` proxy to the network, so use it only when access control is already in place.
+
+If the default host ports are already in use, override them through Make:
+
+```bash
+make install BACKEND_HOST_PORT=8100 FRONTEND_HOST_PORT=3100
+```
+
+The Makefile health and status targets use the same port variables.
 
 The first model load downloads the configured GGUF file into the Docker `model_data` volume. The repository does **not** track local GGUF files or Hugging Face cache symlinks.
 
