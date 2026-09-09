@@ -68,7 +68,7 @@ class ChatResponse(BaseModel):
     created: int
     model: str
     choices: list[dict[str, Any]]
-    usage: dict[str, int]
+    usage: dict[str, Any] = Field(default_factory=dict)
     qwendbc: ChatRoutingMetadata | None = None
 
 
