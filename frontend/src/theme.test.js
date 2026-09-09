@@ -37,4 +37,3 @@ test("applyTheme updates the root data attribute", () => {
   assert.equal(applyTheme("night", root, false), "night");
   assert.equal(root.dataset.theme, "night");
 });
-

@@ -65,4 +65,3 @@ export function applyTheme(
   if (root?.dataset) root.dataset.theme = resolved;
   return resolved;
 }
-
