@@ -24,35 +24,60 @@ Do not assume a specific response or remediation deadline unless a maintainer ex
 
 QwenDBC is designed primarily for local/private use. The application currently provides:
 
-- Pydantic request/config validation;
-- explicit CORS origin configuration;
-- local model execution;
+- Pydantic request and configuration validation, including bounded message,
+  upload, generation, and retrieval parameters;
+- explicit CORS origins and `TrustedHostMiddleware` host validation;
+- optional bearer-token protection for chat, model lifecycle, catalog, and
+  document routes; production configuration requires a non-empty token of at
+  least 32 characters;
+- a process-local fixed-window request limit and bounded remote-provider
+  concurrency;
+- free text-model allowlisting and provider-key isolation on the backend;
+- local model execution and a private SQLite WAL-backed RAG store;
 - loopback-only Docker and development bind defaults;
+- non-root backend containers, read-only container root filesystems, dropped
+  backend capabilities, and security headers in the application/Nginx layers;
 - CodeQL, dependency review, Dependabot, `pip-audit`, and `npm audit` automation;
 - local secret handling guidance through an ignored `.env`.
 
-The application **does not currently implement**:
+The application **does not currently implement** a centralized identity
+provider, multi-user RBAC, tenant isolation, distributed rate limiting, an
+immutable audit log, secret-manager integration, TLS termination, HA/failover,
+or a hosted backup service. The process-local token is an application access
+boundary, not a replacement for organization-wide identity and authorization.
 
-- user authentication or authorization;
-- API keys or access tokens;
-- rate limiting;
-- secure user sessions;
-- tenant isolation.
-
-Therefore, do not expose either the FastAPI backend or the frontend's `/api/` reverse proxy to an untrusted network. Docker uses `BIND_HOST=127.0.0.1` by default. If remote access is required, put the application behind an authenticated reverse proxy, VPN, zero-trust access layer, or equivalent control before changing the bind address.
+Docker uses loopback-only `BACKEND_BIND_HOST` and `FRONTEND_BIND_HOST` defaults.
+For remote access, terminate TLS
+at an authenticated reverse proxy, VPN, or zero-trust access layer; set
+`ENVIRONMENT=production`, explicit `ALLOWED_ORIGINS` and `ALLOWED_HOSTS`, and a
+strong `QWENDBC_ACCESS_TOKEN`; keep the backend port private. Do not treat the
+local rate limiter as sufficient protection for a horizontally scaled
+deployment—enforce limits at the edge as well.
 
 ## Secret handling
 
 Never commit `.env`, API keys, access tokens, private keys, or other credentials. If a real credential was committed at any point, removing it from the latest tree is insufficient: rotate/revoke the credential and assess whether Git history must be rewritten.
 
-Local GGUF models and vector-store data may also contain sensitive or proprietary information and are intentionally ignored by Git.
+Local GGUF models, SQLite RAG data, embedding caches, and provider responses
+may contain sensitive or proprietary information and are intentionally ignored
+by Git. Protect the Docker volumes and include the RAG directory in encrypted,
+access-controlled backups with restore tests.
 
 ## Dependency and model supply chain
 
 - Review Dependabot and dependency-review findings before merging updates.
-- Keep lockfiles committed where the ecosystem supports them.
+- Keep lockfiles committed where the ecosystem supports them and review
+  dependency audit output before release.
 - Review model repository provenance before changing `MODEL_NAME` / `MODEL_FILE`.
 - Treat downloaded models and embedding models as third-party supply-chain artifacts.
+- Production requires immutable model revisions and an exact `MODEL_SHA256`
+  digest for the GGUF file; production remote endpoints must use HTTPS.
+- Do not enable remote providers without reviewing their terms, data handling,
+  quotas, and failure behavior.
+- The current `diskcache` advisory is an explicitly documented exception for
+  the mandatory `llama-cpp-python` import-time dependency; QwenDBC does not
+  enable its disk cache. Re-evaluate and remove the audit ignore when upstream
+  publishes a fix.
 - Do not treat a workflow as validated when GitHub Actions is disabled or no workflow run exists for the commit.
 
 ## Security-related pull requests

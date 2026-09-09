@@ -1,6 +1,8 @@
 # QwenDBC Documentation
 
-Welcome to the **QwenDBC** (Qwen Local LLM Full-Stack Application) documentation. This project provides a complete local AI chat solution using the Qwen language model, with both backend API and frontend interface.
+Welcome to the **QwenDBC** documentation. This project provides a local-first
+AI chat solution using a Qwen GGUF model, with a FastAPI backend, React
+interface, optional free-provider routing, and private document retrieval.
 
 ## 📚 Documentation Structure
 
@@ -18,37 +20,28 @@ Welcome to the **QwenDBC** (Qwen Local LLM Full-Stack Application) documentation
 #### For Users
 - [Getting Started](user-guide/getting-started.md)
 - [Chat Interface Usage](user-guide/chat-usage.md)
-- [Model Management](user-guide/model-management.md)
 - [Troubleshooting](user-guide/troubleshooting.md)
 
 #### For Developers
 - [Development Setup](development/setup.md)
-- [Code Structure](development/code-structure.md)
-- [Testing Guide](development/testing.md)
-- [API Development](development/api-development.md)
 
 #### For DevOps
 - [Docker Deployment](deployment/docker.md)
-- [Environment Configuration](deployment/environment-config.md)
-- [Monitoring & Logging](deployment/monitoring.md)
-- [Backup & Recovery](deployment/backup-recovery.md)
 
 #### For Security Teams
 - [Security Overview](security/overview.md)
-- [Vulnerability Management](security/vulnerability-management.md)
-- [Access Control](security/access-control.md)
-- [Data Privacy](security/data-privacy.md)
 
 ## 🏗️ Project Overview
 
 QwenDBC is a full-stack application that enables local AI chat capabilities using the Qwen language model. Key features include:
 
-- **Local Execution**: Runs entirely on your machine - no cloud dependencies
-- **Privacy First**: All data stays on your device
+- **Local Execution**: Runs locally by default; remote providers are opt-in
+- **Privacy First**: Local model, SQLite RAG data, and provider keys stay server-side
 - **Modern Stack**: FastAPI backend + React frontend
 - **Docker Support**: Easy deployment with Docker Compose
 - **Streaming Responses**: Real-time token streaming
 - **Model Management**: Load/unload models on demand
+- **Controlled Routing**: Eligible free text models with local fallback
 
 ## 📋 System Requirements
 
@@ -68,11 +61,11 @@ QwenDBC is a full-stack application that enables local AI chat capabilities usin
 
 ```bash
 # Clone the repository
-git clone https://github.com/policedbc/qwendbc.git
+git clone https://github.com/cvsz/qwendbc.git
 cd qwendbc
 
 # Start with Docker Compose
-docker-compose up -d
+docker compose up -d
 
 # Access the application
 # Frontend: http://localhost:3000
@@ -91,8 +84,8 @@ docker-compose up -d
                            │
                            ▼
                     ┌──────────────┐
-                    │   ChromaDB   │
-                    │  Vector DB   │
+                    │ SQLite WAL  │
+                    │  RAG store  │
                     └──────────────┘
 ```
 
@@ -101,14 +94,14 @@ docker-compose up -d
 ### Backend
 - **Framework**: FastAPI
 - **LLM Engine**: llama-cpp-python
-- **Vector Database**: ChromaDB
+- **RAG Store**: SQLite WAL with local cosine search
 - **Embeddings**: sentence-transformers
-- **Authentication**: python-jose (JWT)
+- **Access Control**: optional bearer token; production-required
 - **Validation**: Pydantic
 
 ### Frontend
-- **Framework**: React 18
-- **Build Tool**: React Scripts
+- **Framework**: React 19
+- **Build Tool**: Vite
 - **Styling**: CSS3
 - **HTTP Client**: Fetch API
 
@@ -120,9 +113,9 @@ docker-compose up -d
 
 ## 📞 Support
 
-- **Issues**: [GitHub Issues](https://github.com/policedbc/qwendbc/issues)
+- **Issues**: [GitHub Issues](https://github.com/cvsz/qwendbc/issues)
 - **Security Reports**: [SECURITY.md](../SECURITY.md)
-- **Discussions**: [GitHub Discussions](https://github.com/policedbc/qwendbc/discussions)
+- **Discussions**: [GitHub Discussions](https://github.com/cvsz/qwendbc/discussions)
 
 ## 📄 License
 
@@ -130,5 +123,4 @@ This project is licensed under the MIT License - see the [LICENSE](../LICENSE) f
 
 ---
 
-*Last updated: January 2025*
-*Version: 1.0.0*
+*Last updated: September 2026*

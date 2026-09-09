@@ -5,18 +5,18 @@
 [![Dependency Review](https://github.com/cvsz/qwendbc/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/cvsz/qwendbc/actions/workflows/dependency-review.yml)
 [![Release](https://github.com/cvsz/qwendbc/actions/workflows/release.yml/badge.svg)](https://github.com/cvsz/qwendbc/actions/workflows/release.yml)
 
-QwenDBC is a local-first FastAPI + React application for running a GGUF Qwen model with `llama.cpp`, plus local document ingestion and semantic search with ChromaDB. When explicitly enabled, it can route free text chat through Kilo, OpenCode, and OpenRouter before falling back to a loaded local model.
+QwenDBC is a local-first FastAPI + React application for running a GGUF Qwen model with `llama.cpp`, plus local document ingestion and semantic search with SQLite and `sentence-transformers`. When explicitly enabled, it can route free text chat through Kilo, OpenCode, and OpenRouter before falling back to a loaded local model.
 
 ## Current stack
 
 - Backend: Python 3.13, FastAPI 0.141.x, Pydantic v2, llama-cpp-python 0.3.35+
-- Retrieval: ChromaDB 1.5.x, sentence-transformers 6.x
+- Retrieval: SQLite WAL storage, sentence-transformers 6.x
 - Frontend: React 19.2, Vite 8.2
 - Runtime: Docker Compose, Nginx frontend reverse proxy
 - Quality: Black, Flake8, mypy, pytest/coverage, oxlint, ShellCheck when shell scripts exist
 - Security: CodeQL, dependency review, pip-audit, npm audit, Dependabot
 
-> **Security boundary:** remote providers are disabled by default. When `QWENDBC_ACCESS_TOKEN` is configured, chat, model lifecycle, catalog refresh, and document routes require `Authorization: Bearer ...`; health remains readable. Docker and local development bind to loopback by default, and public deployment still needs an authenticated edge/app boundary.
+> **Security boundary:** remote providers are disabled by default. Protected routes require `Authorization: Bearer ...` whenever `QWENDBC_ACCESS_TOKEN` is configured, and production configuration requires a strong token even for local-only inference. Health remains readable. Docker and local development bind to loopback by default, and public deployment still needs TLS plus an authenticated edge/app boundary.
 
 ## Quick start with Docker
 
@@ -42,7 +42,10 @@ Open:
 - Backend API: http://localhost:8000
 - OpenAPI docs: http://localhost:8000/docs
 
-Both published ports bind to `127.0.0.1` by default. `BIND_HOST=0.0.0.0` intentionally exposes the frontend and its `/api/` proxy to the network, so use it only when an authenticated edge and a non-empty `QWENDBC_ACCESS_TOKEN` are in place.
+Both published ports bind to `127.0.0.1` by default. Keep
+`BACKEND_BIND_HOST=127.0.0.1` so the backend stays private; set only
+`FRONTEND_BIND_HOST` for an edge-facing UI, with an authenticated edge and a
+non-empty `QWENDBC_ACCESS_TOKEN`.
 
 If the default host ports are already in use, override them through Make:
 
@@ -54,7 +57,7 @@ The Makefile health and status targets use the same port variables.
 
 The first model load downloads the configured GGUF file into the Docker `model_data` volume. The repository does **not** track local GGUF files or Hugging Face cache symlinks.
 
-Docker loads `configs/.env.example` into the backend container and then applies an optional root `.env` as an override. Container-only paths (`MODEL_PATH` and `CHROMA_DB_PATH`) are overridden by Compose so all other documented settings work consistently in Docker.
+Docker loads `configs/.env.example` into the backend container and then applies an optional root `.env` as an override. Container-only paths (`MODEL_PATH` and `CHROMA_DB_PATH`) are overridden by Compose so all other documented settings work consistently in Docker. The backend runs as a non-root user with a read-only root filesystem; model and RAG volumes are the only persistent writable paths.
 
 ## Local development
 
@@ -158,19 +161,23 @@ curl -X POST http://localhost:8000/api/v1/search \
   -d '{"query":"deployment steps","top_k":5}'
 ```
 
-Document indexing is lazy: ChromaDB and the embedding model initialize on the first upload/search request. This keeps normal chat startup lighter.
+Document indexing is lazy: the private SQLite RAG store and embedding model initialize on the first upload/search request. This keeps normal chat startup lighter. The `CHROMA_DB_PATH` setting retains its historical name for configuration compatibility; it is now a directory containing `rag.sqlite3` and SQLite WAL files. Existing Chroma stores are detected and require an explicit re-index/migration; they are never silently treated as empty.
 
 ## Configuration
 
 Copy `configs/.env.example` to the repository root as `.env`. Important settings include:
 
-- `HOST`, `PORT`, and Docker host publishing via `BIND_HOST`
-- `MODEL_NAME`, `MODEL_FILE`, `MODEL_PATH`
+- `HOST`, `PORT`, `BACKEND_BIND_HOST`, and `FRONTEND_BIND_HOST`
+- `TRUST_PROXY_HEADERS` (enable only when the backend is reached through a
+  trusted proxy that overwrites `X-Real-IP`)
+- `MODEL_NAME`, `MODEL_FILE`, `MODEL_REVISION`, `MODEL_SHA256`, and `MODEL_PATH`
 - `N_THREADS`, `N_BATCH`, `MAX_CONTEXT_LENGTH`
 - `TEMPERATURE`, `TOP_P`, `MAX_TOKENS`
-- `CHROMA_DB_PATH`, `EMBEDDING_MODEL`, `RAG_CHUNK_SIZE`, `RAG_CHUNK_OVERLAP`
+- `CHROMA_DB_PATH` (RAG storage directory), `EMBEDDING_MODEL`,
+  `EMBEDDING_MODEL_REVISION`, `RAG_CHUNK_SIZE`, `RAG_CHUNK_OVERLAP`,
+  `RAG_EMBED_BATCH_SIZE`, and `MAX_RAG_CHUNKS`
 - `MAX_UPLOAD_BYTES`
-- `ALLOWED_ORIGINS`
+- `ENVIRONMENT`, `ALLOWED_ORIGINS`, `ALLOWED_HOSTS`, and `MAX_CHAT_CONTENT_BYTES`
 - `MODEL_MODE`, `FREE_PROVIDER_ORDER`, and `REMOTE_MODELS_ENABLED`
 - `QWENDBC_ACCESS_TOKEN`, `REMOTE_REQUEST_TIMEOUT_SECONDS`,
   `REMOTE_MAX_CONCURRENT_REQUESTS`, and `REMOTE_RATE_LIMIT_PER_MINUTE`

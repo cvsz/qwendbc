@@ -10,7 +10,7 @@ from fastapi import HTTPException
 
 from app.schemas.chat import ModelCatalogItem, ModelsResponse, ProviderStatus
 from app.schemas.config import Settings, settings
-from app.services.access_control import guarded_remote_call
+from app.services.access_control import RemoteCallLease, guarded_remote_call
 from app.services.provider_types import ProviderError, ProviderModel
 from app.services.remote_provider import OpenAICompatibleProvider
 
@@ -96,7 +96,9 @@ class ModelRouter:
             return list(cached[1])
         try:
             models = provider.list_models(refresh=refresh or cached is not None)
-        except ProviderError:
+        except Exception:
+            # Catalog discovery is best-effort. Never turn a provider's raw
+            # exception into a public response or make one outage hide others.
             models = []
         self._catalog_cache[provider.name] = (time.monotonic(), list(models))
         self._catalog_cached_at[provider.name] = datetime.now(timezone.utc)
@@ -165,11 +167,18 @@ class ModelRouter:
             "fallback_available": bool(self.local_service.is_loaded),
         }
 
-    def validate_request(self, provider: str | None = None, model: str | None = None) -> None:
-        """Validate that a request has at least one route before opening a stream."""
+    def validate_request(self, provider: str | None = None, model: str | None = None) -> bool:
+        """Validate a stream and report whether it needs remote capacity."""
         selections = self._selection(provider, model)
         if not any(name != "local" or self.local_service.is_loaded for name, _, _ in selections):
             raise RuntimeError("Model not loaded")
+        for name, _, _ in selections:
+            if name == "local":
+                if self.local_service.is_loaded:
+                    return False
+                continue
+            return True
+        return False
 
     def _is_eligible(self, provider: Any, model: str) -> bool:
         if model in provider.free_model_ids:
@@ -284,7 +293,7 @@ class ModelRouter:
                     )
                 else:
                     assert selected is not None
-                    with guarded_remote_call():
+                    with guarded_remote_call(self.config):
                         response = selected.complete(
                             messages=messages,
                             model=selected_model,
@@ -314,10 +323,11 @@ class ModelRouter:
         temperature: float = settings.TEMPERATURE,
         top_p: float = settings.TOP_P,
         max_tokens: int = settings.MAX_TOKENS,
+        remote_capacity: RemoteCallLease | None = None,
     ) -> Iterator[dict[str, Any]]:
         selections = self._selection(provider, model)
         last_error: ProviderError | None = None
-        for name, selected, selected_model in selections:
+        for attempt, (name, selected, selected_model) in enumerate(selections):
             emitted_content = False
             try:
                 if name == "local":
@@ -329,12 +339,16 @@ class ModelRouter:
                         top_p=top_p,
                         max_tokens=max_tokens,
                     )
+                    response_model = str(self.local_service.get_model_info()["name"])
                     for chunk in stream:
                         emitted_content = emitted_content or self._has_content(chunk)
-                        yield chunk
+                        yield self._decorate_stream_chunk(chunk, name, response_model, attempt > 0)
                 else:
                     assert selected is not None
-                    with guarded_remote_call():
+                    capacity = remote_capacity
+                    remote_capacity = None
+                    remote_context = capacity or guarded_remote_call(self.config)
+                    with remote_context:
                         for chunk in selected.stream(
                             messages=messages,
                             model=selected_model,
@@ -343,7 +357,12 @@ class ModelRouter:
                             max_tokens=max_tokens,
                         ):
                             emitted_content = emitted_content or self._has_content(chunk)
-                            yield chunk
+                            response_model = str(
+                                chunk.get("model") or selected_model or selected.default_model
+                            )
+                            yield self._decorate_stream_chunk(
+                                chunk, name, response_model, attempt > 0
+                            )
                 return
             except ProviderError as error:
                 if emitted_content:
@@ -367,3 +386,12 @@ class ModelRouter:
             return False
         delta = choices[0].get("delta")
         return isinstance(delta, dict) and bool(delta.get("content"))
+
+    @staticmethod
+    def _decorate_stream_chunk(
+        chunk: dict[str, Any], provider: str, model: str, fallback: bool
+    ) -> dict[str, Any]:
+        result = dict(chunk)
+        result["model"] = model
+        result["qwendbc"] = {"provider": provider, "model": model, "fallback": fallback}
+        return result

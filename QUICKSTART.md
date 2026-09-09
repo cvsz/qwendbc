@@ -24,7 +24,10 @@ Open:
 - Backend: http://localhost:8000
 - OpenAPI: http://localhost:8000/docs
 
-Docker publishes both ports on `127.0.0.1` by default. Keep `BIND_HOST=127.0.0.1` unless you have an authenticated reverse proxy, VPN, zero-trust access layer, or equivalent network control. Setting `BIND_HOST=0.0.0.0` also exposes the frontend's `/api/` reverse proxy, not just the static UI.
+Docker publishes both ports on `127.0.0.1` by default. Keep
+`BACKEND_BIND_HOST=127.0.0.1` so the backend remains private. If an edge needs
+to reach the UI, set only `FRONTEND_BIND_HOST` and keep the backend port on a
+loopback/private interface.
 
 If ports 8000 or 3000 are already occupied, use for example
 `make install BACKEND_HOST_PORT=8100 FRONTEND_HOST_PORT=3100`.
@@ -32,6 +35,7 @@ If ports 8000 or 3000 are already occupied, use for example
 The model is downloaded only when you click **Load local model** or call the model-load endpoint. The GGUF is stored in the Docker `model_data` volume and is not committed to Git.
 
 Compose loads `configs/.env.example` and then the optional root `.env` into the backend container. This means generation/RAG settings in `.env` are honored in Docker; Compose only overrides container-internal host and data paths.
+The backend container runs without root privileges and with a read-only root filesystem. The `model_data` and `chroma_data` volumes hold the model/cache and SQLite RAG data respectively.
 
 ## Local development
 
@@ -121,6 +125,25 @@ models are eligible, and the response reports its selected provider/model in
 `qwendbc` metadata. Set `MODEL_MODE=local` or
 `REMOTE_MODELS_ENABLED=false`, then restart, to roll back remote routing.
 
+For a production configuration, set an explicit public origin and host, keep
+`DEBUG=false`, and use a randomly generated token of at least 32 characters:
+
+```dotenv
+ENVIRONMENT=production
+ALLOWED_ORIGINS=https://chat.example.com
+ALLOWED_HOSTS=chat.example.com
+QWENDBC_ACCESS_TOKEN=generate-and-inject-this-out-of-band
+MODEL_REVISION=pin-a-40-character-hugging-face-commit
+EMBEDDING_MODEL_REVISION=pin-a-40-character-hugging-face-commit
+MODEL_SHA256=pin-a-64-character-model-file-digest
+```
+
+Production disables the FastAPI documentation routes and rejects unknown Host
+headers. Terminate TLS at the edge and keep the backend port private. The
+revision values must be lowercase 40-character immutable commits, and
+`MODEL_SHA256` must be the exact lowercase SHA-256 digest of the GGUF file.
+Production provider endpoints must use HTTPS.
+
 The web interface persists **Day**, **Night**, or **System** theme selection;
 System follows the browser preference and reduced-motion settings are honored.
 
@@ -135,7 +158,11 @@ curl -X POST http://localhost:8000/api/v1/search \
   -d '{"query":"deployment steps","top_k":5}'
 ```
 
-Only UTF-8 text uploads are supported by the current API. Nginx permits request bodies up to 100 MiB so the backend's lower `MAX_UPLOAD_BYTES` setting remains the authoritative application limit.
+Only UTF-8 text uploads are supported by the current API. Nginx rejects bodies
+above 6 MiB before multipart parsing, while the backend's lower
+`MAX_UPLOAD_BYTES` setting (5 MiB maximum) remains authoritative. The local
+SQLite store is initialized lazily and should be included in encrypted, tested
+backups.
 
 ## Troubleshooting
 
@@ -158,4 +185,8 @@ For local development, verify Python 3.13 is active and rerun `make setup-backen
 
 In Docker, Nginx proxies `/api/` to the backend service. In local development, Vite proxies `/api/` to `http://127.0.0.1:8000`. Use `VITE_API_URL` only when a deployment intentionally needs a different API origin.
 
-> When `QWENDBC_ACCESS_TOKEN` is set, protected API calls require a bearer token. Do not expose either the backend or the frontend API proxy to an untrusted network without that application token plus an authenticated reverse proxy or equivalent access control.
+The production Nginx policy permits same-origin API calls by default. If a
+deployment builds with an external `VITE_API_URL`, update the edge/browser CSP
+`connect-src` allowlist to that exact HTTPS origin.
+
+> When `QWENDBC_ACCESS_TOKEN` is set, protected API calls require a bearer token. Production always requires that token. Do not expose either the backend or the frontend API proxy to an untrusted network without TLS, the application token, and an authenticated reverse proxy or equivalent access control.

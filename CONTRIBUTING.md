@@ -73,7 +73,11 @@ npm run lint
 npm run build
 ```
 
-Keep API calls same-origin (`/api/v1`) unless a deployment explicitly requires `VITE_API_URL`. Always check `response.ok` before treating a request as successful, and display non-sensitive error messages to users.
+Keep API calls same-origin (`/api/v1`) unless a deployment explicitly requires
+`VITE_API_URL`; an external API origin also requires an explicit CSP
+`connect-src` update at the serving edge. Always check `response.ok` before
+treating a request as successful, and display non-sensitive error messages to
+users.
 
 Do not inject transport/UI error strings into the chat history sent back to the model. Keep the conversation within the backend's message-count limit, and omit generation fields when the UI intends to use backend configuration defaults.
 
@@ -83,7 +87,7 @@ The repository currently gates frontend changes with lint and production build c
 
 Document ingestion and semantic search live in `backend/app/services/rag_service.py` and `backend/app/routers/documents.py`.
 
-Tests should normally override the RAG dependency with a fake service so API tests remain deterministic and do not download embedding models. Changes to ChromaDB or sentence-transformers integration should also be verified manually or in an integration environment with the real dependencies available.
+Tests should normally override the RAG dependency with a fake service so API tests remain deterministic and do not download embedding models. Changes to the SQLite or sentence-transformers integration should also be verified manually or in an integration environment with the real dependencies available.
 
 ## Configuration and secrets
 
@@ -107,7 +111,7 @@ Run the stack with:
 make docker-up
 ```
 
-The production frontend image is served by Nginx and proxies `/api/` to the backend container. Docker publishes frontend/backend ports on loopback by default through `BIND_HOST=127.0.0.1`.
+The production frontend image is served by Nginx and proxies `/api/` to the backend container. Docker publishes frontend/backend ports on loopback by default through `BACKEND_BIND_HOST=127.0.0.1` and `FRONTEND_BIND_HOST=127.0.0.1`.
 
 ## Git and pull requests
 

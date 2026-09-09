@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.schemas.config import settings
 
@@ -24,6 +24,13 @@ class ChatRequest(BaseModel):
     model: str | None = Field(default=None, min_length=1, max_length=256)
     use_rag: bool = False
     rag_top_k: int = Field(default=5, ge=1, le=50)
+
+    @model_validator(mode="after")
+    def validate_total_message_content(self) -> "ChatRequest":
+        total_bytes = sum(len(message.content.encode("utf-8")) for message in self.messages)
+        if total_bytes > settings.MAX_CHAT_CONTENT_BYTES:
+            raise ValueError("total message content exceeds MAX_CHAT_CONTENT_BYTES")
+        return self
 
 
 class ProviderStatus(BaseModel):

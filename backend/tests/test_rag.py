@@ -1,4 +1,5 @@
 from collections.abc import Generator
+from types import ModuleType
 from typing import Any
 
 import pytest
@@ -7,6 +8,8 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.routers.chat import get_model_router
 from app.routers.documents import get_rag_service
+from app.schemas.config import settings
+from app.services.rag_service import RAGService
 
 
 class FakeRAGService:
@@ -54,6 +57,16 @@ def test_upload_document_success(client: TestClient) -> None:
     )
     assert response.status_code == 200
     assert response.json() == {"filename": "test.txt", "chunks_added": 2}
+
+
+def test_upload_document_normalizes_untrusted_filename(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/documents/upload",
+        files={"file": ("../unsafe\nname.txt", b"Test document content", "text/plain")},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["filename"] == "unsafe name.txt"
 
 
 def test_upload_rejects_non_utf8(client: TestClient) -> None:
@@ -157,3 +170,84 @@ def test_streaming_chat_rag_injects_labeled_context_before_completion(client: Te
         "role": "system",
         "content": "Retrieved context:\n[1] test.txt\nmatching text",
     }
+
+
+def test_rag_persists_normalized_embeddings_without_remote_vector_server(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeSentenceTransformer:
+        def __init__(self, _: str, **__: Any) -> None:
+            pass
+
+        def encode(self, texts: list[str], **_: Any) -> list[list[float]]:
+            return [[1.0, 0.0] if "apple" in text.lower() else [0.0, 1.0] for text in texts]
+
+    fake_module = ModuleType("sentence_transformers")
+    fake_module.SentenceTransformer = FakeSentenceTransformer  # type: ignore[attr-defined]
+    monkeypatch.setitem(__import__("sys").modules, "sentence_transformers", fake_module)
+    monkeypatch.setattr(settings, "CHROMA_DB_PATH", str(tmp_path / "rag-data"))
+
+    service = RAGService()
+    try:
+        assert service.add_document("fruit.txt", "apple notes") == 1
+
+        results = service.search("apple", top_k=1)
+
+        assert results[0]["document"] == "apple notes"
+        assert results[0]["metadata"]["filename"] == "fruit.txt"
+    finally:
+        service.close()
+
+
+def test_rag_rejects_a_legacy_chroma_store_without_silent_data_loss(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_module = ModuleType("sentence_transformers")
+    fake_module.SentenceTransformer = object  # type: ignore[attr-defined]
+    monkeypatch.setitem(__import__("sys").modules, "sentence_transformers", fake_module)
+    storage_path = tmp_path / "rag-data"
+    storage_path.mkdir()
+    (storage_path / "chroma.sqlite3").write_bytes(b"legacy")
+    monkeypatch.setattr(settings, "CHROMA_DB_PATH", str(storage_path))
+
+    service = RAGService()
+    try:
+        with pytest.raises(RuntimeError, match="Legacy Chroma"):
+            service.search("query")
+    finally:
+        service.close()
+
+
+def test_rag_embeddings_are_batched_and_chunk_quota_is_enforced(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    batches: list[int] = []
+
+    class FakeSentenceTransformer:
+        def __init__(self, _: str, **__: Any) -> None:
+            pass
+
+        def encode(self, texts: list[str], **_: Any) -> list[list[float]]:
+            batches.append(len(texts))
+            return [[1.0, 0.0] for _ in texts]
+
+    fake_module = ModuleType("sentence_transformers")
+    fake_module.SentenceTransformer = FakeSentenceTransformer  # type: ignore[attr-defined]
+    monkeypatch.setitem(__import__("sys").modules, "sentence_transformers", fake_module)
+    monkeypatch.setattr(settings, "CHROMA_DB_PATH", str(tmp_path / "rag-data"))
+    monkeypatch.setattr(settings, "RAG_CHUNK_SIZE", 5)
+    monkeypatch.setattr(settings, "RAG_CHUNK_OVERLAP", 0)
+    monkeypatch.setattr(settings, "RAG_EMBED_BATCH_SIZE", 2)
+    monkeypatch.setattr(settings, "MAX_RAG_CHUNKS", 3)
+
+    service = RAGService()
+    try:
+        assert service.add_document("batch.txt", "123456789012345") == 3
+        assert batches == [2, 1]
+        with pytest.raises(ValueError, match="quota"):
+            service.add_document("too-many.txt", "another document")
+    finally:
+        service.close()

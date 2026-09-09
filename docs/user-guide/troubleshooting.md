@@ -1,527 +1,148 @@
-# Troubleshooting Guide
+# Troubleshooting
 
-Common issues and solutions for QwenDBC.
+Use read-only diagnostics first. Do not remove Docker volumes, containers, or
+host directories on a production system until a verified backup and rollback
+plan exist.
 
-## Quick Diagnostic Steps
-
-Before diving into specific issues:
-
-1. **Check service status**: `docker-compose ps`
-2. **View logs**: `docker-compose logs --tail=50`
-3. **Verify ports**: `netstat -tlnp | grep -E '8000|3000'`
-4. **Test health endpoint**: `curl http://localhost:8000/api/v1/health`
-
----
-
-## Model Loading Issues
-
-### Issue: Model Won't Load
-
-**Symptoms:**
-- "Load Model" button shows error
-- Status remains "Not Loaded"
-- Timeout after clicking load
-
-**Possible Causes & Solutions:**
-
-#### 1. Insufficient RAM
-
-**Diagnosis:**
-```bash
-free -h
-docker stats
-```
-
-**Solution:**
-- Close memory-intensive applications
-- Use smaller model variant (e.g., q4_k_m instead of q8_0)
-- Add swap space:
-  ```bash
-  sudo fallocate -l 4G /swapfile
-  sudo chmod 600 /swapfile
-  sudo mkswap /swapfile
-  sudo swapon /swapfile
-  ```
-
-#### 2. Download Failure
-
-**Diagnosis:**
-```bash
-docker-compose logs backend | grep -i "download\|error"
-```
-
-**Solution:**
-- Check internet connectivity: `ping huggingface.co`
-- Verify HuggingFace accessibility: `curl https://huggingface.co`
-- Manually download model:
-  ```bash
-  cd models
-  wget https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf
-  ```
-- Check proxy settings if behind corporate firewall
-
-#### 3. Disk Space Full
-
-**Diagnosis:**
-```bash
-df -h
-```
-
-**Solution:**
-```bash
-# Clean up Docker
-docker system prune -a
-
-# Remove old models
-rm -rf models/*
-
-# Clear ChromaDB if not needed
-rm -rf chroma_db/*
-```
-
-#### 4. CPU Thread Configuration
-
-**Symptoms:** Model loads but system becomes unresponsive
-
-**Solution:**
-Reduce thread count in `.env`:
-```env
-N_THREADS=2
-MAX_CONTEXT_LENGTH=2048
-```
-
----
-
-## Performance Issues
-
-### Issue: Slow Response Times
-
-**Symptoms:**
-- Responses take >30 seconds
-- System lag during inference
-- High CPU usage sustained
-
-**Diagnosis:**
-```bash
-# Monitor CPU
-top -p $(pgrep -f "uvicorn")
-
-# Check memory pressure
-vmstat 1 5
-
-# View request timing
-docker-compose logs backend | grep "response_time"
-```
-
-**Solutions:**
-
-#### 1. Optimize Model Settings
-
-```env
-# Reduce context length
-MAX_CONTEXT_LENGTH=2048
-
-# Limit response length
-MAX_TOKENS=512
-
-# Reduce batch size
-N_BATCH=256
-```
-
-#### 2. Resource Allocation
-
-```yaml
-# In docker-compose.yml
-deploy:
-  resources:
-    limits:
-      cpus: '4'
-      memory: 8G
-```
-
-#### 3. Use Smaller Model
-
-Switch to more aggressive quantization:
-```env
-MODEL_FILE=qwen2.5-1.5b-instruct-q2_k.gguf
-```
-
-#### 4. Clear Conversation History
-
-Long conversations consume more resources. Click "Clear Chat" periodically.
-
----
-
-### Issue: Out of Memory (OOM)
-
-**Symptoms:**
-- Container crashes unexpectedly
-- "Killed" message in logs
-- System becomes unresponsive
-
-**Diagnosis:**
-```bash
-dmesg | grep -i "killed process"
-docker inspect qwen-backend | grep -A 10 "OOMKilled"
-```
-
-**Solutions:**
-
-#### 1. Increase Memory Limits
-
-```yaml
-services:
-  backend:
-    deploy:
-      resources:
-        limits:
-          memory: 16G
-        reservations:
-          memory: 8G
-```
-
-#### 2. Use Smaller Model
-
-```env
-MODEL_NAME=Qwen/Qwen2.5-0.5B-Instruct-GGUF
-```
-
-#### 3. Enable Swap
+## Check service state
 
 ```bash
-sudo fallocate -l 8G /swapfile
-sudo chmod 600 /swapfile
-sudo mkswap /swapfile
-sudo swapon /swapfile
-echo "/swapfile none swap sw 0 0" | sudo tee -a /etc/fstab
+docker compose ps
+docker compose logs --tail=100 backend
+docker compose logs --tail=100 frontend
+curl -i http://127.0.0.1:8000/api/v1/health
 ```
 
-#### 4. Unload When Not in Use
+The health endpoint should return `200` and JSON. It does not load the model or
+refresh remote provider catalogs.
 
-Use API to unload model when idle:
-```bash
-curl -X POST http://localhost:8000/api/v1/model/unload
-```
+## Backend does not start
 
----
+Inspect the logs for configuration validation errors. Common causes include:
 
-## Connection Issues
+- `ENVIRONMENT=production` without a 32-character application token;
+- wildcard/empty `ALLOWED_HOSTS` or wildcard production CORS origins;
+- `MAX_TOKENS` greater than `MAX_CONTEXT_LENGTH`;
+- an invalid provider order that does not end with `local`;
+- insufficient permissions on the model or RAG volumes.
 
-### Issue: Frontend Can't Connect to Backend
-
-**Symptoms:**
-- "Connection failed" error
-- Model status shows "Error"
-- Network tab shows failed requests
-
-**Diagnosis:**
-```bash
-# Check if backend is running
-docker-compose ps backend
-
-# Test backend directly
-curl http://localhost:8000/api/v1/health
-
-# Check CORS errors in browser console
-```
-
-**Solutions:**
-
-#### 1. Restart Services
+Validate the rendered Compose file without printing secret values:
 
 ```bash
-docker-compose restart backend frontend
+docker compose config --quiet
+docker compose config --services
 ```
 
-#### 2. Verify Port Availability
+## Frontend cannot reach the API
+
+In Docker, the browser calls the frontend origin and Nginx proxies `/api/` to
+the backend service. Confirm both services are healthy and inspect the
+frontend logs. In local development, Vite proxies to
+`http://127.0.0.1:8000`.
+
+If a browser reports a CORS or Host error, check that the public origin appears
+exactly in `ALLOWED_ORIGINS` and the incoming host appears in `ALLOWED_HOSTS`.
+Do not solve this by enabling `*` in production.
+
+## Protected route returns 401
+
+Confirm the token is present in the backend environment without printing its
+value and send the exact value as:
+
+```http
+Authorization: Bearer <application-token>
+```
+
+Do not put the token in a URL or commit it. If the token may have leaked,
+rotate it in the secret system and invalidate the relevant edge session.
+
+## Rate limit returns 429
+
+The application applies a process-local fixed-window limit when access is
+configured. Remote provider calls also have a bounded non-blocking semaphore.
+Respect `Retry-After`, reduce client concurrency, and inspect edge limits.
+For multiple replicas, configure distributed quotas at the edge; changing the
+application setting on one process does not coordinate the others.
+
+## Model load fails
 
 ```bash
-# Check if ports are in use
-netstat -tlnp | grep -E '8000|3000'
-
-# Kill conflicting processes if needed
-sudo lsof -ti:8000 | xargs kill -9
+docker compose logs --tail=200 backend
+docker system df
+docker compose exec backend sh -c 'id && df -h /app/models /tmp'
 ```
 
-#### 3. Check CORS Configuration
+Check model name/file compatibility, available memory/storage, network access
+for the first download, and host permissions. The model is loaded explicitly;
+normal health checks do not download it. Avoid loading unreviewed model
+repositories.
 
-Ensure `.env` has correct origins:
-```env
-ALLOWED_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000"]
+## Chat fails or falls back
+
+Inspect the response's non-secret `qwendbc` metadata. Automatic routing tries
+the configured free-provider order and ends at local fallback. Providers may
+be unavailable because credentials are absent, the catalog has no eligible
+free text model, the request timed out, or a provider returned a retryable
+failure.
+
+To isolate local inference, set and restart with:
+
+```dotenv
+MODEL_MODE=local
+REMOTE_MODELS_ENABLED=false
 ```
 
-#### 4. Rebuild Containers
+When streaming, a provider fallback is only possible before the first content
+chunk. A completed SSE response ends with `data: [DONE]`.
+
+## Document upload/search fails
+
+Only UTF-8 text is accepted. Check file size against `MAX_UPLOAD_BYTES` and
+inspect the backend logs for embedding initialization errors. The RAG service
+is lazy and stores SQLite WAL data under `CHROMA_DB_PATH`; the historical
+setting/volume name does not mean ChromaDB is installed.
 
 ```bash
-docker-compose down
-docker-compose build --no-cache
-docker-compose up -d
+docker compose exec backend sh -c 'ls -la /app/chroma_db'
 ```
 
----
+Do not edit or delete the SQLite database while the service is running. For
+corruption or migration work, take a consistent backup, stop the backend, and
+use a SQLite-aware recovery procedure.
 
-### Issue: API Returns 500 Errors
+## Performance and capacity
 
-**Symptoms:**
-- HTTP 500 Internal Server Error
-- Error messages in response
-- Backend logs show exceptions
+Review host CPU, memory, disk, and container process limits. Tune
+`N_THREADS`, `N_BATCH`, `MAX_CONTEXT_LENGTH`, `MAX_TOKENS`, and the configured
+remote concurrency limit for the machine. One process owns one local model;
+horizontal scaling requires a deliberate model/volume and shared-quota design.
 
-**Diagnosis:**
-```bash
-docker-compose logs backend | grep -A 5 "ERROR"
-```
+Long-lived SSE requests require appropriate edge read timeouts and connection
+limits. Do not increase timeouts or body limits blindly on a public edge.
 
-**Common Causes:**
+## Safe recovery
 
-#### 1. Model Not Loaded
-
-**Solution:**
-```bash
-curl -X POST http://localhost:8000/api/v1/model/load
-```
-
-#### 2. Invalid Request Format
-
-**Solution:** Verify request matches schema:
-```json
-{
-  "messages": [
-    {"role": "user", "content": "Hello"}
-  ],
-  "temperature": 0.7,
-  "max_tokens": 2048
-}
-```
-
-#### 3. Backend Crash
-
-**Solution:**
-```bash
-docker-compose restart backend
-docker-compose logs --tail=100 backend
-```
-
----
-
-## Frontend Issues
-
-### Issue: Blank Page or Loading Forever
-
-**Symptoms:**
-- White screen
-- perpetual loading spinner
-- No content rendered
-
-**Diagnosis:**
-Open browser DevTools (F12) and check Console tab
-
-**Solutions:**
-
-#### 1. Build Errors
+For a reversible restart:
 
 ```bash
-cd frontend
-npm run build
+docker compose restart backend frontend
+docker compose ps
+curl --fail http://127.0.0.1:8000/api/v1/health
 ```
 
-#### 2. Environment Variable Missing
+For a release rollback, redeploy the previously recorded image digest and
+configuration revision. Preserve the model and RAG volumes unless the
+recovery plan explicitly calls for a verified restore.
 
-Ensure `.env` exists in frontend directory:
-```env
-REACT_APP_API_URL=http://localhost:8000/api/v1
-```
+## Information to collect for support
 
-#### 3. Clear Browser Cache
+Provide the commit/image identifiers, sanitized configuration keys and values,
+service status, relevant redacted logs, host OS/runtime versions, memory/disk
+availability, and exact reproduction steps. Remove tokens, provider keys,
+prompts, uploaded documents, model paths that reveal sensitive layout, and
+personal data before sharing.
 
-- Hard refresh: Ctrl+Shift+R (or Cmd+Shift+R on Mac)
-- Clear site data in browser settings
-- Try incognito/private mode
+For vulnerabilities, use the private process in
+[SECURITY.md](../../SECURITY.md), not a public issue.
 
-#### 4. Rebuild Frontend
-
-```bash
-docker-compose down frontend
-docker-compose build frontend
-docker-compose up -d frontend
-```
-
----
-
-### Issue: Messages Not Sending
-
-**Symptoms:**
-- Send button disabled
-- Input field grayed out
-- Error on send attempt
-
-**Solutions:**
-
-#### 1. Check Model Status
-
-Model must be loaded before chatting. Click "Load Model".
-
-#### 2. Clear Input
-
-Empty input disables send button. Type a message.
-
-#### 3. Check Network
-
-Verify backend is responding:
-```bash
-curl http://localhost:8000/api/v1/health
-```
-
----
-
-## Logging & Debugging
-
-### Enable Debug Mode
-
-Set in `.env`:
-```env
-DEBUG=True
-LOG_LEVEL=DEBUG
-```
-
-### View Logs
-
-```bash
-# All services
-docker-compose logs -f
-
-# Specific service
-docker-compose logs -f backend
-
-# Last N lines
-docker-compose logs --tail=100
-
-# With timestamps
-docker-compose logs -ft
-```
-
-### Export Logs
-
-```bash
-docker-compose logs > full_logs.txt
-```
-
----
-
-## Database Issues (ChromaDB)
-
-### Issue: Vector Store Corruption
-
-**Symptoms:**
-- Embedding generation fails
-- Collection errors
-- Data inconsistency
-
-**Solutions:**
-
-#### 1. Reset ChromaDB
-
-```bash
-docker-compose down
-rm -rf chroma_db/*
-docker-compose up -d
-```
-
-#### 2. Check Disk Permissions
-
-```bash
-sudo chown -R 1000:1000 chroma_db
-```
-
-#### 3. Verify Volume Mount
-
-Ensure volume is correctly mounted in `docker-compose.yml`:
-```yaml
-volumes:
-  - ./chroma_db:/app/chroma_db
-```
-
----
-
-## Recovery Procedures
-
-### Complete Reset
-
-When all else fails:
-
-```bash
-# Stop everything
-docker-compose down -v
-
-# Remove all containers
-docker rm -f $(docker ps -aq)
-
-# Remove images
-docker rmi $(docker images -q qwen*)
-
-# Clean directories
-rm -rf models/* chroma_db/*
-
-# Rebuild from scratch
-docker-compose build --no-cache
-docker-compose up -d
-```
-
-### Backup Before Reset
-
-```bash
-# Backup important data
-cp -r chroma_db chroma_db.backup
-cp -r models models.backup
-
-# After reset, restore if needed
-cp -r chroma_db.backup/* chroma_db/
-```
-
----
-
-## Getting More Help
-
-### Information to Gather
-
-When seeking help, include:
-
-1. **System Info:**
-   ```bash
-   uname -a
-   free -h
-   df -h
-   ```
-
-2. **Docker Info:**
-   ```bash
-   docker --version
-   docker-compose --version
-   docker info
-   ```
-
-3. **Application Logs:**
-   ```bash
-   docker-compose logs --tail=200 > logs.txt
-   ```
-
-4. **Configuration:**
-   - `.env` file contents (remove secrets)
-   - `docker-compose.yml`
-   - Steps to reproduce
-
-### Where to Get Help
-
-- **GitHub Issues**: https://github.com/policedbc/qwendbc/issues
-- **Documentation**: Check other docs in `/docs`
-- **Community**: GitHub Discussions
-
----
-
-*Last updated: January 2025*
-*Version: 1.0.0*
-
-See also:
-- [Getting Started](getting-started.md)
-- [Chat Usage](chat-usage.md)
-- [Deployment](../deployment/docker.md)
+*Last updated: September 2026*
