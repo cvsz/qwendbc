@@ -40,7 +40,10 @@ jobs:
           PYTHONPATH: backend
         run: pytest -c backend/pyproject.toml backend/tests --cov=app --cov-report=term-missing
       - name: Python dependency audit
-        run: pip-audit -r backend/requirements.txt
+        # diskcache is a mandatory llama-cpp-python import-time dependency;
+        # QwenDBC never enables LlamaDiskCache and the current advisory has no
+        # upstream fix. Keep the exception explicit and review on dependency updates.
+        run: pip-audit -r backend/requirements.txt --ignore-vuln PYSEC-2026-2447
 
   frontend:
     runs-on: ubuntu-latest
@@ -62,6 +65,9 @@ jobs:
       - name: Lint frontend
         working-directory: frontend
         run: npm run lint
+      - name: Test frontend helpers
+        working-directory: frontend
+        run: npm test
       - name: Build frontend
         working-directory: frontend
         run: npm run build

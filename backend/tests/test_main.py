@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.routers.chat import get_llm_service
+from app.routers.chat import get_llm_service, get_model_router
 from app.schemas.config import Settings, settings
 from app.services.llm_service import llm_service
 
@@ -69,6 +69,10 @@ def test_health_check(client: TestClient) -> None:
     data = response.json()
     assert data["status"] == "healthy"
     assert "timestamp" in data
+    assert data["remote_models_enabled"] is False
+    assert data["active_provider"] is None
+    assert data["selected_model"] is None
+    assert data["fallback_available"] is False
 
 
 def test_model_info_is_available_when_unloaded(client: TestClient) -> None:
@@ -77,6 +81,20 @@ def test_model_info_is_available_when_unloaded(client: TestClient) -> None:
     response = client.get("/api/v1/model/info")
     assert response.status_code == 200
     assert response.json()["loaded"] is False
+
+
+@pytest.mark.parametrize("path", ["/api/v1/model/info", "/api/v1/models"])
+def test_model_surfaces_require_access_when_token_is_configured(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    path: str,
+) -> None:
+    app.dependency_overrides[get_llm_service] = lambda: FakeLLMService(loaded=False)
+    monkeypatch.setattr(settings, "QWENDBC_ACCESS_TOKEN", "configured-access-token")
+
+    response = client.get(path)
+
+    assert response.status_code == 401
 
 
 def test_chat_completion_requires_loaded_model(client: TestClient) -> None:
@@ -99,6 +117,32 @@ def test_chat_completion_success(client: TestClient) -> None:
     assert response.json()["choices"][0]["message"]["content"] == "hello"
 
 
+def test_models_catalog_has_typed_public_shape(client: TestClient) -> None:
+    class FakeRouter:
+        def list_models(self, refresh: bool = False) -> dict[str, Any]:
+            assert refresh is False
+            return {
+                "object": "list",
+                "data": [
+                    {
+                        "id": "kilo-auto/free",
+                        "name": "Kilo Auto Free",
+                        "provider": "kilo",
+                        "free": True,
+                        "supports_chat": True,
+                        "context_length": None,
+                    }
+                ],
+                "providers": [{"name": "kilo", "configured": True, "available": True}],
+            }
+
+    app.dependency_overrides[get_model_router] = FakeRouter
+    response = client.get("/api/v1/models")
+
+    assert response.status_code == 200
+    assert response.json()["data"][0]["provider"] == "kilo"
+
+
 def test_streaming_completion_terminates_with_done(client: TestClient) -> None:
     app.dependency_overrides[get_llm_service] = lambda: FakeLLMService()
     response = client.post(
@@ -107,6 +151,22 @@ def test_streaming_completion_terminates_with_done(client: TestClient) -> None:
     )
     assert response.status_code == 200
     assert "data: [DONE]" in response.text
+
+
+def test_streaming_completion_requires_an_available_route(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = FakeLLMService(loaded=False)
+    app.dependency_overrides[get_llm_service] = lambda: fake
+    monkeypatch.setattr(settings, "MODEL_MODE", "local")
+    monkeypatch.setattr(settings, "REMOTE_MODELS_ENABLED", False)
+
+    response = client.post(
+        "/api/v1/chat/completions/stream",
+        json={"messages": [{"role": "user", "content": "Hello"}]},
+    )
+
+    assert response.status_code == 400
 
 
 @pytest.mark.parametrize(
@@ -141,6 +201,28 @@ def test_default_settings_are_valid() -> None:
     assert config.MODEL_FILE.endswith(".gguf")
     assert config.RAG_CHUNK_OVERLAP < config.RAG_CHUNK_SIZE
     assert config.allowed_origins_list
+
+
+def test_default_free_order_is_provider_safe() -> None:
+    config = Settings(_env_file=None)
+    assert config.MODEL_MODE == "auto_free"
+    assert config.free_provider_order == ("kilo", "opencode", "openrouter", "local")
+    assert config.REMOTE_MODELS_ENABLED is False
+
+
+def test_remote_mode_requires_access_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("QWENDBC_ACCESS_TOKEN", raising=False)
+    with pytest.raises(ValueError, match="QWENDBC_ACCESS_TOKEN"):
+        Settings(_env_file=None, REMOTE_MODELS_ENABLED=True)
+
+
+@pytest.mark.parametrize(
+    "provider_order",
+    ["kilo,kilo,local", "kilo,unknown,local"],
+)
+def test_settings_reject_invalid_free_provider_order(provider_order: str) -> None:
+    with pytest.raises(ValueError, match="FREE_PROVIDER_ORDER"):
+        Settings(_env_file=None, FREE_PROVIDER_ORDER=provider_order)
 
 
 def test_settings_reject_max_tokens_above_context() -> None:

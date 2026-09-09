@@ -1,10 +1,17 @@
 import asyncio
 from typing import Annotated
+from urllib.parse import unquote
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
-from app.schemas.chat import DocumentQuery, DocumentSearchResponse, DocumentUploadResponse
+from app.schemas.chat import (
+    DocumentQuery,
+    DocumentSearchResponse,
+    DocumentSearchResult,
+    DocumentUploadResponse,
+)
 from app.schemas.config import settings
+from app.services.access_control import require_access
 from app.services.rag_service import RAGService, rag_service
 from app.utils.logger import get_logger
 
@@ -16,13 +23,24 @@ def get_rag_service() -> RAGService:
     return rag_service
 
 
+def _safe_filename(filename: str | None) -> str:
+    candidate = unquote(filename or "document.txt").replace("\\", "/")
+    candidate = candidate.rsplit("/", 1)[-1]
+    candidate = "".join(char if char.isprintable() else " " for char in candidate)
+    return " ".join(candidate.split())[:255] or "document.txt"
+
+
 @router.post("/documents/upload", response_model=DocumentUploadResponse)
 async def upload_document(
     file: Annotated[UploadFile, File(...)],
     service: RAGService = Depends(get_rag_service),
+    _: None = Depends(require_access),
 ) -> DocumentUploadResponse:
-    filename = file.filename or "document.txt"
-    raw = await file.read(settings.MAX_UPLOAD_BYTES + 1)
+    filename = _safe_filename(file.filename)
+    try:
+        raw = await file.read(settings.MAX_UPLOAD_BYTES + 1)
+    finally:
+        await file.close()
     if len(raw) > settings.MAX_UPLOAD_BYTES:
         raise HTTPException(
             status_code=413,
@@ -60,10 +78,13 @@ async def upload_document(
 async def search_documents(
     request: DocumentQuery,
     service: RAGService = Depends(get_rag_service),
+    _: None = Depends(require_access),
 ) -> DocumentSearchResponse:
     try:
         results = await asyncio.to_thread(service.search, request.query, request.top_k)
     except Exception as exc:
         logger.exception("Document search failed")
         raise HTTPException(status_code=503, detail="Document index is unavailable") from exc
-    return DocumentSearchResponse(results=results)
+    return DocumentSearchResponse(
+        results=[DocumentSearchResult.model_validate(result) for result in results]
+    )

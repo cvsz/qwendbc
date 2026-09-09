@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.schemas.config import settings
 
@@ -20,6 +20,46 @@ class ChatRequest(BaseModel):
         ge=1,
         le=settings.MAX_CONTEXT_LENGTH,
     )
+    provider: str | None = Field(default=None, min_length=1, max_length=64)
+    model: str | None = Field(default=None, min_length=1, max_length=256)
+    use_rag: bool = False
+    rag_top_k: int = Field(default=5, ge=1, le=50)
+
+    @model_validator(mode="after")
+    def validate_total_message_content(self) -> "ChatRequest":
+        total_bytes = sum(len(message.content.encode("utf-8")) for message in self.messages)
+        if total_bytes > settings.MAX_CHAT_CONTENT_BYTES:
+            raise ValueError("total message content exceeds MAX_CHAT_CONTENT_BYTES")
+        return self
+
+
+class ProviderStatus(BaseModel):
+    name: str
+    configured: bool
+    available: bool
+
+
+class ModelCatalogItem(BaseModel):
+    id: str
+    name: str
+    provider: str
+    free: bool
+    supports_chat: bool
+    context_length: int | None = None
+
+
+class ModelsResponse(BaseModel):
+    object: Literal["list"] = "list"
+    data: list[ModelCatalogItem]
+    providers: list[ProviderStatus]
+    cached_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class ChatRoutingMetadata(BaseModel):
+    provider: str
+    model: str
+    fallback: bool
+    rag_sources: list[dict[str, Any]] | None = None
 
 
 class ChatResponse(BaseModel):
@@ -29,6 +69,7 @@ class ChatResponse(BaseModel):
     model: str
     choices: list[dict[str, Any]]
     usage: dict[str, int]
+    qwendbc: ChatRoutingMetadata | None = None
 
 
 class DocumentQuery(BaseModel):
@@ -59,6 +100,11 @@ class HealthResponse(BaseModel):
     version: str
     model_loaded: bool
     timestamp: datetime
+    providers: list[ProviderStatus] = Field(default_factory=list)
+    active_provider: str | None = None
+    selected_model: str | None = None
+    remote_models_enabled: bool = False
+    fallback_available: bool = False
 
 
 class ModelInfo(BaseModel):
@@ -69,3 +115,8 @@ class ModelInfo(BaseModel):
     context_length: int
     threads: int
     loaded: bool
+    providers: list[ProviderStatus] = Field(default_factory=list)
+    active_provider: str | None = None
+    selected_model: str | None = None
+    remote_models_enabled: bool = False
+    fallback_available: bool = False

@@ -1,553 +1,179 @@
-# Deployment Guide
+# Docker Deployment
 
-This guide covers deployment options for QwenDBC in various environments.
+This is the supported production-shaped Docker Compose deployment. It runs
+the React build behind Nginx and keeps the FastAPI backend on the internal
+Compose network. The default host bindings are loopback-only.
 
-## Table of Contents
+## Prerequisites
 
-- [Docker Deployment](#docker-deployment)
-- [Production Configuration](#production-configuration)
-- [Environment Variables](#environment-variables)
-- [Reverse Proxy Setup](#reverse-proxy-setup)
-- [SSL/TLS Configuration](#ssltls-configuration)
-- [Monitoring & Logging](#monitoring--logging)
-- [Backup & Recovery](#backup--recovery)
-- [Scaling Considerations](#scaling-considerations)
+- Docker Engine with Compose v2.24 or newer;
+- a host with enough memory and disk for the GGUF model and embedding cache;
+- an external TLS and identity-aware edge for any non-local deployment;
+- an approved secret-injection mechanism for the application/provider tokens.
 
----
+## Production configuration
 
-## Docker Deployment
-
-### Production Docker Compose
-
-Create `docker-compose.prod.yml`:
-
-```yaml
-version: "3.8"
-
-services:
-  backend:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.backend
-    container_name: qwen-backend-prod
-    volumes:
-      - models_data:/app/models
-      - chroma_data:/app/chroma_db
-      - ./logs:/app/logs
-    environment:
-      - MODEL_NAME=${MODEL_NAME}
-      - MODEL_FILE=${MODEL_FILE}
-      - N_THREADS=${N_THREADS:-8}
-      - MAX_CONTEXT_LENGTH=${MAX_CONTEXT_LENGTH:-4096}
-      - SECRET_KEY=${SECRET_KEY}
-      - DEBUG=False
-    ports:
-      - "127.0.0.1:8000:8000"  # Only accessible locally
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 120s
-    deploy:
-      resources:
-        limits:
-          memory: 16G
-        reservations:
-          memory: 8G
-
-  frontend:
-    build:
-      context: .
-      dockerfile: docker/Dockerfile.frontend
-    container_name: qwen-frontend-prod
-    environment:
-      - REACT_APP_API_URL=/api/v1
-    ports:
-      - "127.0.0.1:3000:3000"  # Only accessible locally
-    depends_on:
-      backend:
-        condition: service_healthy
-    restart: unless-stopped
-
-volumes:
-  models_data:
-  chroma_data:
-```
-
-### Deploy to Production
+Create a root `.env` from the non-secret example, then replace the production
+values through the deployment secret/configuration system:
 
 ```bash
-# Set environment variables
-export SECRET_KEY=$(openssl rand -hex 32)
-export MODEL_NAME="Qwen/Qwen2.5-1.5B-Instruct-GGUF"
-export MODEL_FILE="qwen2.5-1.5b-instruct-q4_k_m.gguf"
-
-# Start production stack
-docker-compose -f docker-compose.prod.yml up -d
-
-# Check status
-docker-compose -f docker-compose.prod.yml ps
-
-# View logs
-docker-compose -f docker-compose.prod.yml logs -f
+cp configs/.env.example .env
 ```
 
----
+At minimum, production requires:
 
-## Production Configuration
-
-### Security Hardening
-
-1. **Change Default Secret Key**
-
-```env
-SECRET_KEY=<generate-strong-random-key>
+```dotenv
+ENVIRONMENT=production
+DEBUG=false
+BACKEND_BIND_HOST=127.0.0.1
+FRONTEND_BIND_HOST=127.0.0.1
+ALLOWED_ORIGINS=https://chat.example.com
+ALLOWED_HOSTS=chat.example.com
+QWENDBC_ACCESS_TOKEN=<inject-a-random-token-of-at-least-32-characters>
+MODEL_REVISION=<40-character-immutable-hugging-face-commit>
+EMBEDDING_MODEL_REVISION=<40-character-immutable-hugging-face-commit>
+MODEL_SHA256=<64-character-sha256-of-the-exact-gguf-file>
+REMOTE_MODELS_ENABLED=false
 ```
 
-Generate secure key:
-```bash
-python -c "import secrets; print(secrets.token_urlsafe(32))"
-```
+Use the actual public hostname in both allowlists. Keep
+`REMOTE_MODELS_ENABLED=false` unless the provider terms, data handling,
+quotas, credentials, and fallback behavior have been approved. Provider keys
+belong only in the backend secret store; never place them in frontend build
+variables.
 
-2. **Restrict CORS Origins**
+Production requires lowercase 40-character Hugging Face commit revisions for
+both the GGUF and embedding model plus a 64-character SHA-256 digest for the
+exact GGUF bytes. Resolve and review those immutable references before
+deployment; mutable branches and tags are rejected by configuration. Remote
+provider endpoints must use HTTPS in production.
 
-```env
-ALLOWED_ORIGINS=["https://your-domain.com"]
-```
+Compose deliberately overrides `HOST`, `PORT`, `MODEL_PATH`, and
+`CHROMA_DB_PATH` with container values. The historical `CHROMA_DB_PATH` name
+now points to a directory containing the private SQLite RAG database and its
+WAL files. Existing Chroma data is not auto-migrated: the service detects a
+legacy `chroma.sqlite3` store and requires a reviewed re-index/migration.
+`RAG_EMBED_BATCH_SIZE` bounds embedding work per batch and
+`MAX_RAG_CHUNKS` provides a hard local index quota; tune both to the host's
+memory and storage budget.
 
-3. **Disable Debug Mode**
+## Build and start
 
-```env
-DEBUG=False
-```
-
-4. **Use Non-Root User** (in Dockerfile)
-
-```dockerfile
-RUN adduser --disabled-password --gecos '' appuser
-USER appuser
-```
-
-### Resource Limits
-
-Set appropriate resource limits based on your model size:
-
-| Model Size | RAM Required | CPU Threads | Disk Space |
-|------------|--------------|-------------|------------|
-| 1.5B       | 4-8 GB       | 4-8         | 5 GB       |
-| 3B         | 8-16 GB      | 8-12        | 10 GB      |
-| 7B         | 16-32 GB     | 12-16       | 20 GB      |
-
----
-
-## Environment Variables
-
-### Complete Environment Reference
-
-```env
-# Application
-APP_NAME=Qwen LLM App
-APP_VERSION=1.0.0
-DEBUG=False
-
-# Server
-HOST=0.0.0.0
-PORT=8000
-
-# Model Configuration
-MODEL_NAME=Qwen/Qwen2.5-1.5B-Instruct-GGUF
-MODEL_FILE=qwen2.5-1.5b-instruct-q4_k_m.gguf
-MODEL_PATH=./models
-MAX_CONTEXT_LENGTH=4096
-N_THREADS=8
-N_BATCH=512
-
-# Generation Defaults
-TEMPERATURE=0.7
-TOP_P=0.9
-MAX_TOKENS=2048
-
-# RAG Configuration
-CHROMA_DB_PATH=./chroma_db
-EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
-
-# Security
-SECRET_KEY=<your-secret-key>
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-
-# CORS
-ALLOWED_ORIGINS=["https://your-domain.com"]
-
-# Logging
-LOG_LEVEL=INFO
-LOG_FORMAT=json
-```
-
-### Environment Files
-
-**Development**: `.env.development`
-**Staging**: `.env.staging`
-**Production**: `.env.production`
-
-Load specific environment:
+Run the release gates on the exact commit intended for deployment before
+building images:
 
 ```bash
-set -a
-source .env.production
-set +a
-docker-compose up -d
+make lint
+make test
+make security
+make shellcheck
+docker compose config --quiet
+docker compose build --pull
+docker compose up -d
+docker compose ps
 ```
 
----
+Verify liveness without exposing protected data:
 
-## Reverse Proxy Setup
+```bash
+curl --fail http://127.0.0.1:8000/api/v1/health
+curl --fail http://127.0.0.1:3000/
+```
 
-### Nginx Configuration
+In production, also verify that `/docs`, `/redoc`, and `/openapi.json` return
+404, an unknown Host is rejected, and protected routes return 401 without the
+application token. Record the exact image digests, commit SHA, configuration
+revision, and verification output in the release system.
 
-Create `/etc/nginx/sites-available/qwendbc`:
+## Container controls
+
+The backend image runs as the non-root `app` user. Compose configures a
+read-only root filesystem, drops backend capabilities, disables privilege
+escalation, limits process count, and provides a no-exec temporary filesystem.
+Only the model/cache and RAG volumes are persistent writable locations. The
+frontend filesystem is also read-only; Nginx runtime, cache, log, and temp
+paths are tmpfs mounts.
+
+Do not add host mounts for the repository, `.env`, private keys, or arbitrary
+host paths. Do not publish the backend port publicly. If a host bind must be
+changed, set only `FRONTEND_BIND_HOST` behind an edge firewall and
+authenticated TLS proxy; retain `BACKEND_BIND_HOST=127.0.0.1` or another
+private interface.
+
+## TLS edge contract
+
+The Compose stack terminates HTTP only. The external edge must provide:
+
+- certificate issuance and renewal;
+- HSTS after HTTPS has been verified;
+- identity-aware access and revocation;
+- distributed request/concurrency limits and upload limits;
+- redacted access logs, metrics, tracing, and alerting;
+- forwarding of `Host`, `X-Forwarded-For`, and `X-Forwarded-Proto` headers.
+
+Example reverse-proxy shape:
 
 ```nginx
-server {
-    listen 80;
-    server_name your-domain.com;
-
-    # Redirect HTTP to HTTPS
-    return 301 https://$server_name$request_uri;
-}
-
 server {
     listen 443 ssl http2;
-    server_name your-domain.com;
+    server_name chat.example.com;
 
-    # SSL Configuration
-    ssl_certificate /etc/letsencrypt/live/your-domain.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/your-domain.com/privkey.pem;
-    ssl_protocols TLSv1.2 TLSv1.3;
-    ssl_ciphers HIGH:!aNULL:!MD5;
-
-    # Security Headers
-    add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header X-XSS-Protection "1; mode=block" always;
+    # Supply certificates and TLS policy from the edge's managed config.
     add_header Strict-Transport-Security "max-age=31536000" always;
 
-    # Frontend
     location / {
         proxy_pass http://127.0.0.1:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
         proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
-        proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    }
-
-    # Backend API
-    location /api/ {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        
-        # Increase timeouts for long-running requests
-        proxy_connect_timeout 120s;
-        proxy_send_timeout 120s;
-        proxy_read_timeout 120s;
-    }
-
-    # WebSocket support for streaming
-    location /api/v1/chat/completions/stream {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        
-        # Disable buffering for streaming
-        proxy_buffering off;
-        proxy_cache off;
-        chunked_transfer_encoding off;
-    }
-
-    # Rate limiting
-    location /api/ {
-        limit_req zone=api_limit burst=20 nodelay;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_read_timeout 900s;
     }
 }
 ```
 
-### Rate Limiting Configuration
+The example is a shape, not a complete TLS policy. Review cipher suites,
+certificate paths, access policy, body limits, and log redaction with the
+platform team.
 
-Add to nginx `http` block:
+## Storage and backups
 
-```nginx
-http {
-    limit_req_zone $binary_remote_addr zone=api_limit:10m rate=10r/s;
-    
-    # ... rest of config
-}
-```
+`model_data` stores the GGUF model and embedding/model cache. `chroma_data`
+stores the SQLite RAG database despite its historical volume name. Treat both
+as sensitive. Use encrypted host storage, restricted Docker/host access, and
+retention-limited backups.
 
-### Enable Site
-
-```bash
-sudo ln -s /etc/nginx/sites-available/qwendbc /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl reload nginx
-```
-
----
-
-## SSL/TLS Configuration
-
-### Let's Encrypt with Certbot
+SQLite backups must be consistent with WAL mode. Prefer the SQLite online
+backup API or stop the backend before taking an offline volume snapshot. A
+generic operational sequence is:
 
 ```bash
-# Install certbot
-sudo apt install certbot python3-certbot-nginx
-
-# Obtain certificate
-sudo certbot --nginx -d your-domain.com
-
-# Auto-renewal (already configured by certbot)
-sudo certbot renew --dry-run
+docker compose stop frontend backend
+# Snapshot the named chroma_data and model_data volumes with the platform backup tool.
+docker compose start backend frontend
 ```
 
-### Automatic Renewal Cron Job
+Record backup success, size/checksum, retention, and a periodic restore test.
+Do not delete the live volume as part of a backup or troubleshooting command.
 
-```bash
-# Edit crontab
-sudo crontab -e
+## Rollback and incident response
 
-# Add renewal job
-0 3 * * * certbot renew --quiet --post-hook "systemctl reload nginx"
+To disable hosted routing without changing local RAG data, set:
+
+```dotenv
+MODEL_MODE=local
+REMOTE_MODELS_ENABLED=false
 ```
 
----
-
-## Monitoring & Logging
-
-### Application Logs
-
-Configure log rotation `/etc/logrotate.d/qwendbc`:
-
-```
-/var/log/qwendbc/*.log {
-    daily
-    rotate 14
-    compress
-    delaycompress
-    missingok
-    notifempty
-    create 0640 www-data www-data
-    postrotate
-        systemctl reload nginx
-    endscript
-}
-```
-
-### Docker Logs
-
-```bash
-# View recent logs
-docker-compose logs --tail=100
-
-# Follow logs in real-time
-docker-compose logs -f
-
-# Export logs
-docker-compose logs > application.log
-```
-
-### Health Checks
-
-Monitor service health:
-
-```bash
-# Check container health
-docker inspect --format='{{.State.Health.Status}}' qwen-backend-prod
-
-# Test health endpoint
-curl http://localhost:8000/api/v1/health
-```
-
-### Prometheus Metrics (Future)
-
-Export metrics for monitoring:
-
-```python
-from prometheus_fastapi_instrumentator import Instrumentator
-
-instrumentator = Instrumentator()
-instrumentator.instrument(app).expose(app)
-```
-
----
-
-## Backup & Recovery
-
-### Backup Strategy
-
-#### Automated Backup Script
-
-Create `backup.sh`:
-
-```bash
-#!/bin/bash
-
-BACKUP_DIR="/backups/qwendbc"
-DATE=$(date +%Y%m%d_%H%M%S)
-
-mkdir -p $BACKUP_DIR
-
-# Backup ChromaDB
-docker run --rm \
-  -v qwendbc_chroma_data:/data \
-  -v $BACKUP_DIR:/backup \
-  alpine tar czf /backup/chroma_db_$DATE.tar.gz -C /data .
-
-# Backup configuration
-cp .env.production $BACKUP_DIR/env_$DATE.backup
-
-# Cleanup old backups (keep 30 days)
-find $BACKUP_DIR -name "*.tar.gz" -mtime +30 -delete
-
-echo "Backup completed: $DATE"
-```
-
-#### Restore from Backup
-
-```bash
-# Stop services
-docker-compose down
-
-# Restore ChromaDB
-docker run --rm \
-  -v qwendbc_chroma_data:/data \
-  -v /backups/qwendbc:/backup \
-  alpine tar xzf /backup/chroma_db_YYYYMMDD_HHMMSS.tar.gz -C /data
-
-# Restart services
-docker-compose up -d
-```
-
-### Disaster Recovery Plan
-
-1. **Document current configuration**
-2. **Regular backup testing**
-3. **Maintain offline copies of models**
-4. **Keep dependency versions documented**
-
----
-
-## Scaling Considerations
-
-### Vertical Scaling
-
-Increase resources on single server:
-
-```yaml
-deploy:
-  resources:
-    limits:
-      cpus: '16'
-      memory: 32G
-    reservations:
-      cpus: '8'
-      memory: 16G
-```
-
-### Horizontal Scaling (Future)
-
-For multiple instances:
-
-1. **Load Balancer**: HAProxy or Nginx
-2. **Shared Storage**: NFS for models
-3. **Session Management**: Redis
-4. **Database**: External ChromaDB cluster
-
-### Caching Layer
-
-Implement Redis caching:
-
-```python
-from redis import Redis
-from fastapi_cache import FastAPICache
-from fastapi_cache.backends.redis import RedisBackend
-
-@app.on_event("startup")
-async def startup():
-    redis = Redis("redis://localhost:6379")
-    FastAPICache.init(RedisBackend(redis), prefix="qwendbc-cache")
-```
-
----
-
-## Production Checklist
-
-Before going live:
-
-- [ ] Change all default passwords and keys
-- [ ] Enable HTTPS with valid certificate
-- [ ] Configure firewall rules
-- [ ] Set up log rotation
-- [ ] Configure backup automation
-- [ ] Test disaster recovery
-- [ ] Set up monitoring alerts
-- [ ] Document runbooks
-- [ ] Configure rate limiting
-- [ ] Enable security headers
-- [ ] Test failover procedures
-- [ ] Review and restrict CORS
-- [ ] Disable debug mode
-- [ ] Set resource limits
-- [ ] Configure health checks
-
----
-
-## Troubleshooting Production Issues
-
-### Common Issues
-
-#### High Memory Usage
-
-```bash
-# Monitor memory
-docker stats qwen-backend-prod
-
-# Solution: Reduce model size or increase limits
-```
-
-#### Slow Response Times
-
-```bash
-# Check CPU usage
-docker stats
-
-# Check disk I/O
-iostat -x 1
-
-# Solution: Use SSD, reduce concurrent requests
-```
-
-#### Connection Timeouts
-
-```bash
-# Check network connectivity
-docker exec qwen-backend-prod curl http://localhost:8000/api/v1/health
-
-# Solution: Increase timeout settings
-```
-
----
-
-*Last updated: January 2025*
-*Version: 1.0.0*
+Restart the backend and verify health and an authorized local chat. If an
+application token is exposed, revoke/rotate it in the secret system and
+invalidate the affected edge session. If a provider key or model artifact is
+exposed, revoke/rotate the credential and assess downloaded-data retention.
+See [the security policy](../../SECURITY.md) for private reporting guidance.
+
+## Release evidence boundary
+
+Local Compose health and CI prove repository/image gates only. They do not
+prove hosted DNS, TLS, identity, edge policy, signed image provenance,
+provider availability, backup restoration, capacity, SLOs, or compliance.
+Those must be verified and recorded in the target environment before calling
+the deployment production-ready.

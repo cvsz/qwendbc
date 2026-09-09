@@ -4,7 +4,8 @@ Detailed guide on using the QwenDBC chat interface effectively.
 
 ## Overview
 
-The chat interface provides a conversational UI to interact with the Qwen language model running locally on your machine.
+The chat interface provides a conversational UI for the configured local Qwen
+model and, when explicitly enabled, eligible free remote providers.
 
 ## Interface Components
 
@@ -74,6 +75,18 @@ Assistant: Writing is similar, just change the mode to 'w':
 ---
 
 ## Advanced Features
+
+### Provider and RAG controls
+
+The control room exposes the normalized eligible model catalog when the backend
+is available. Automatic routing follows `FREE_PROVIDER_ORDER` and ends with
+the local fallback. Response metadata identifies the selected provider and
+whether fallback occurred.
+
+Enable **Use local RAG** to retrieve relevant chunks from uploaded UTF-8 text
+documents. RAG data stays in the backend's private SQLite store. If remote
+routing is enabled, the resulting prompt context may also be sent to the
+selected provider, so review provider handling before using sensitive data.
 
 ### System Messages
 
@@ -261,7 +274,8 @@ The model's knowledge is limited to its training data. Verify:
 
 ### Context Window
 
-Maximum context length is 4096 tokens:
+The default context length is 4096 tokens and is configurable within the
+backend bounds:
 - Long conversations may lose early context
 - Very long documents may be truncated
 - Clear chat to reset context
@@ -322,15 +336,16 @@ Always verify important information from authoritative sources.
 ## Privacy Notes
 
 Remember:
-- All processing happens locally
-- No data is sent to external servers
-- Chat history stored only on your device
-- Clear sensitive conversations manually
+- local mode keeps inference and RAG processing on the backend host;
+- enabling a remote provider sends the request to that provider under its
+  terms and retention policy;
+- provider API keys never belong in the frontend;
+- browser chat state is local UI state; clear sensitive conversations manually
+  and follow the deployment's data-retention policy.
 
 ---
 
-*Last updated: January 2025*
-*Version: 1.0.0*
+*Last updated: September 2026*
 
 See also:
 - [Getting Started](getting-started.md)
