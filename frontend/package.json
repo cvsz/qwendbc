@@ -9,6 +9,7 @@
   "scripts": {
     "start": "vite",
     "dev": "vite",
+    "test": "node --test",
     "build": "vite build",
     "lint": "oxlint src",
     "preview": "vite preview"
