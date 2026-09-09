@@ -5,7 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.routers.chat import get_llm_service
+from app.routers.chat import get_llm_service, get_model_router
 from app.schemas.config import Settings, settings
 from app.services.llm_service import llm_service
 
@@ -97,6 +97,32 @@ def test_chat_completion_success(client: TestClient) -> None:
     )
     assert response.status_code == 200
     assert response.json()["choices"][0]["message"]["content"] == "hello"
+
+
+def test_models_catalog_has_typed_public_shape(client: TestClient) -> None:
+    class FakeRouter:
+        def list_models(self, refresh: bool = False) -> dict[str, Any]:
+            assert refresh is False
+            return {
+                "object": "list",
+                "data": [
+                    {
+                        "id": "kilo-auto/free",
+                        "name": "Kilo Auto Free",
+                        "provider": "kilo",
+                        "free": True,
+                        "supports_chat": True,
+                        "context_length": None,
+                    }
+                ],
+                "providers": [{"name": "kilo", "configured": True, "available": True}],
+            }
+
+    app.dependency_overrides[get_model_router] = FakeRouter
+    response = client.get("/api/v1/models")
+
+    assert response.status_code == 200
+    assert response.json()["data"][0]["provider"] == "kilo"
 
 
 def test_streaming_completion_terminates_with_done(client: TestClient) -> None:

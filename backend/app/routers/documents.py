@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
 from app.schemas.chat import DocumentQuery, DocumentSearchResponse, DocumentUploadResponse
 from app.schemas.config import settings
+from app.services.access_control import require_access
 from app.services.rag_service import RAGService, rag_service
 from app.utils.logger import get_logger
 
@@ -20,6 +21,7 @@ def get_rag_service() -> RAGService:
 async def upload_document(
     file: Annotated[UploadFile, File(...)],
     service: RAGService = Depends(get_rag_service),
+    _: None = Depends(require_access),
 ) -> DocumentUploadResponse:
     filename = file.filename or "document.txt"
     raw = await file.read(settings.MAX_UPLOAD_BYTES + 1)
@@ -60,6 +62,7 @@ async def upload_document(
 async def search_documents(
     request: DocumentQuery,
     service: RAGService = Depends(get_rag_service),
+    _: None = Depends(require_access),
 ) -> DocumentSearchResponse:
     try:
         results = await asyncio.to_thread(service.search, request.query, request.top_k)

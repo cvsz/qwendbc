@@ -20,6 +20,38 @@ class ChatRequest(BaseModel):
         ge=1,
         le=settings.MAX_CONTEXT_LENGTH,
     )
+    provider: str | None = Field(default=None, min_length=1, max_length=64)
+    model: str | None = Field(default=None, min_length=1, max_length=256)
+    use_rag: bool = False
+    rag_top_k: int = Field(default=5, ge=1, le=50)
+
+
+class ProviderStatus(BaseModel):
+    name: str
+    configured: bool
+    available: bool
+
+
+class ModelCatalogItem(BaseModel):
+    id: str
+    name: str
+    provider: str
+    free: bool
+    supports_chat: bool
+    context_length: int | None = None
+
+
+class ModelsResponse(BaseModel):
+    object: Literal["list"] = "list"
+    data: list[ModelCatalogItem]
+    providers: list[ProviderStatus]
+
+
+class ChatRoutingMetadata(BaseModel):
+    provider: str
+    model: str
+    fallback: bool
+    rag_sources: list[dict[str, Any]] | None = None
 
 
 class ChatResponse(BaseModel):
@@ -29,6 +61,7 @@ class ChatResponse(BaseModel):
     model: str
     choices: list[dict[str, Any]]
     usage: dict[str, int]
+    qwendbc: ChatRoutingMetadata | None = None
 
 
 class DocumentQuery(BaseModel):
@@ -59,6 +92,7 @@ class HealthResponse(BaseModel):
     version: str
     model_loaded: bool
     timestamp: datetime
+    providers: list[ProviderStatus] = Field(default_factory=list)
 
 
 class ModelInfo(BaseModel):
@@ -69,3 +103,4 @@ class ModelInfo(BaseModel):
     context_length: int
     threads: int
     loaded: bool
+    providers: list[ProviderStatus] = Field(default_factory=list)

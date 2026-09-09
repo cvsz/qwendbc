@@ -5,6 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.routers.chat import get_model_router
 from app.routers.documents import get_rag_service
 
 
@@ -74,3 +75,83 @@ def test_search_returns_typed_results(client: TestClient) -> None:
     data = response.json()
     assert len(data["results"]) == 1
     assert data["results"][0]["metadata"]["filename"] == "test.txt"
+
+
+def test_document_upload_requires_bearer_token_when_configured(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.schemas.config import settings
+
+    monkeypatch.setattr(settings, "QWENDBC_ACCESS_TOKEN", "expected")
+    response = client.post(
+        "/api/v1/documents/upload",
+        files={"file": ("test.txt", b"Test document content", "text/plain")},
+    )
+
+    assert response.status_code == 401
+
+
+def test_chat_rag_injects_labeled_context_before_completion(client: TestClient) -> None:
+    captured: dict[str, Any] = {}
+
+    class FakeRouter:
+        def complete(self, messages: list[dict[str, Any]], **_: Any) -> dict[str, Any]:
+            captured["messages"] = messages
+            return {
+                "id": "chatcmpl-rag",
+                "object": "chat.completion",
+                "created": 1,
+                "model": "test-model",
+                "choices": [{"index": 0, "message": {"role": "assistant", "content": "ok"}}],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+                "qwendbc": {"provider": "local", "model": "test-model", "fallback": False},
+            }
+
+    app.dependency_overrides[get_model_router] = FakeRouter
+    response = client.post(
+        "/api/v1/chat/completions",
+        json={
+            "messages": [{"role": "user", "content": "What is in the document?"}],
+            "use_rag": True,
+            "rag_top_k": 2,
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured["messages"][-2] == {
+        "role": "system",
+        "content": "Retrieved context:\n[1] test.txt\nmatching text",
+    }
+
+
+def test_streaming_chat_rag_injects_labeled_context_before_completion(client: TestClient) -> None:
+    captured: dict[str, Any] = {}
+
+    class FakeRouter:
+        local_service = type("Local", (), {"is_loaded": True})()
+        _remote_enabled = False
+
+        def stream(self, messages: list[dict[str, Any]], **_: Any) -> Generator[dict[str, Any], None, None]:
+            captured["messages"] = messages
+            yield {
+                "id": "chatcmpl-rag",
+                "object": "chat.completion.chunk",
+                "created": 1,
+                "model": "test-model",
+                "choices": [{"index": 0, "delta": {"content": "ok"}, "finish_reason": None}],
+            }
+
+    app.dependency_overrides[get_model_router] = FakeRouter
+    response = client.post(
+        "/api/v1/chat/completions/stream",
+        json={
+            "messages": [{"role": "user", "content": "What is in the document?"}],
+            "use_rag": True,
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured["messages"][-2] == {
+        "role": "system",
+        "content": "Retrieved context:\n[1] test.txt\nmatching text",
+    }
