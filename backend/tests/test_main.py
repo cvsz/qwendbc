@@ -150,7 +150,8 @@ def test_default_free_order_is_provider_safe() -> None:
     assert config.REMOTE_MODELS_ENABLED is False
 
 
-def test_remote_mode_requires_access_token() -> None:
+def test_remote_mode_requires_access_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("QWENDBC_ACCESS_TOKEN", raising=False)
     with pytest.raises(ValueError, match="QWENDBC_ACCESS_TOKEN"):
         Settings(_env_file=None, REMOTE_MODELS_ENABLED=True)
 
