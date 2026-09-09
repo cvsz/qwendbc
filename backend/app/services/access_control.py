@@ -5,6 +5,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 import hashlib
 import hmac
+import ipaddress
 import threading
 import time
 
@@ -36,8 +37,14 @@ def _unauthorized() -> HTTPException:
     )
 
 
-def _client_key(request: Request, token: str) -> str:
+def _client_key(request: Request, token: str, config: Settings) -> str:
     host = request.client.host if request.client is not None else "unknown"
+    if config.TRUST_PROXY_HEADERS:
+        forwarded_host = request.headers.get("X-Real-IP", "").strip()
+        try:
+            host = str(ipaddress.ip_address(forwarded_host))
+        except ValueError:
+            pass
     token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
     return f"{token_hash}:{host}"
 
@@ -80,7 +87,7 @@ def require_access(request: Request) -> None:
     scheme, _, presented = authorization.partition(" ")
     if scheme.lower() != "bearer" or not presented or not hmac.compare_digest(presented, expected):
         raise _unauthorized()
-    _check_fixed_window(_client_key(request, expected), config.REMOTE_RATE_LIMIT_PER_MINUTE)
+    _check_fixed_window(_client_key(request, expected, config), config.REMOTE_RATE_LIMIT_PER_MINUTE)
 
 
 def _semaphore(config: Settings = settings) -> threading.BoundedSemaphore:
@@ -93,16 +100,42 @@ def _semaphore(config: Settings = settings) -> threading.BoundedSemaphore:
         return _remote_semaphore
 
 
+class RemoteCallLease:
+    """Idempotently releasable reservation for a remote-provider call."""
+
+    def __init__(self, config: Settings = settings) -> None:
+        self._semaphore = _semaphore(config)
+        self._released = False
+        if not self._semaphore.acquire(blocking=False):
+            raise _too_many_requests(1)
+
+    def release(self) -> None:
+        with _state_lock:
+            if self._released:
+                return
+            self._released = True
+        self._semaphore.release()
+
+    def __enter__(self) -> "RemoteCallLease":
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        self.release()
+
+
+def reserve_remote_call(config: Settings = settings) -> RemoteCallLease:
+    """Reserve remote capacity before a streaming response is opened."""
+    return RemoteCallLease(config)
+
+
 @contextmanager
 def guarded_remote_call(config: Settings = settings) -> Iterator[None]:
     """Reserve bounded remote capacity without ever blocking local inference."""
-    semaphore = _semaphore(config)
-    if not semaphore.acquire(blocking=False):
-        raise _too_many_requests(1)
+    lease = reserve_remote_call(config)
     try:
         yield
     finally:
-        semaphore.release()
+        lease.release()
 
 
 def reset_access_control() -> None:

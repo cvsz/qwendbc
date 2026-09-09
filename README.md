@@ -42,7 +42,10 @@ Open:
 - Backend API: http://localhost:8000
 - OpenAPI docs: http://localhost:8000/docs
 
-Both published ports bind to `127.0.0.1` by default. `BIND_HOST=0.0.0.0` intentionally exposes the frontend and its `/api/` proxy to the network, so use it only when an authenticated edge and a non-empty `QWENDBC_ACCESS_TOKEN` are in place.
+Both published ports bind to `127.0.0.1` by default. Keep
+`BACKEND_BIND_HOST=127.0.0.1` so the backend stays private; set only
+`FRONTEND_BIND_HOST` for an edge-facing UI, with an authenticated edge and a
+non-empty `QWENDBC_ACCESS_TOKEN`.
 
 If the default host ports are already in use, override them through Make:
 
@@ -158,18 +161,21 @@ curl -X POST http://localhost:8000/api/v1/search \
   -d '{"query":"deployment steps","top_k":5}'
 ```
 
-Document indexing is lazy: the private SQLite RAG store and embedding model initialize on the first upload/search request. This keeps normal chat startup lighter. The `CHROMA_DB_PATH` setting retains its historical name for configuration compatibility; it is now a directory containing `rag.sqlite3` and SQLite WAL files.
+Document indexing is lazy: the private SQLite RAG store and embedding model initialize on the first upload/search request. This keeps normal chat startup lighter. The `CHROMA_DB_PATH` setting retains its historical name for configuration compatibility; it is now a directory containing `rag.sqlite3` and SQLite WAL files. Existing Chroma stores are detected and require an explicit re-index/migration; they are never silently treated as empty.
 
 ## Configuration
 
 Copy `configs/.env.example` to the repository root as `.env`. Important settings include:
 
-- `HOST`, `PORT`, and Docker host publishing via `BIND_HOST`
+- `HOST`, `PORT`, `BACKEND_BIND_HOST`, and `FRONTEND_BIND_HOST`
+- `TRUST_PROXY_HEADERS` (enable only when the backend is reached through a
+  trusted proxy that overwrites `X-Real-IP`)
 - `MODEL_NAME`, `MODEL_FILE`, `MODEL_REVISION`, `MODEL_SHA256`, and `MODEL_PATH`
 - `N_THREADS`, `N_BATCH`, `MAX_CONTEXT_LENGTH`
 - `TEMPERATURE`, `TOP_P`, `MAX_TOKENS`
 - `CHROMA_DB_PATH` (RAG storage directory), `EMBEDDING_MODEL`,
-  `EMBEDDING_MODEL_REVISION`, `RAG_CHUNK_SIZE`, and `RAG_CHUNK_OVERLAP`
+  `EMBEDDING_MODEL_REVISION`, `RAG_CHUNK_SIZE`, `RAG_CHUNK_OVERLAP`,
+  `RAG_EMBED_BATCH_SIZE`, and `MAX_RAG_CHUNKS`
 - `MAX_UPLOAD_BYTES`
 - `ENVIRONMENT`, `ALLOWED_ORIGINS`, `ALLOWED_HOSTS`, and `MAX_CHAT_CONTENT_BYTES`
 - `MODEL_MODE`, `FREE_PROVIDER_ORDER`, and `REMOTE_MODELS_ENABLED`

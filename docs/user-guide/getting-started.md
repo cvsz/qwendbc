@@ -17,8 +17,8 @@ Open `http://localhost:3000`. The backend health endpoint is
 `http://localhost:8000/api/v1/health`; development API docs are at
 `http://localhost:8000/docs`.
 
-Both ports bind to loopback by default. Do not change `BIND_HOST` to a public
-interface without the production controls in the
+Both ports bind to loopback by default. Keep `BACKEND_BIND_HOST` private; do
+not expose `FRONTEND_BIND_HOST` publicly without the production controls in the
 [deployment guide](../deployment/docker.md).
 
 ## Load and use a model

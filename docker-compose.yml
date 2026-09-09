@@ -10,6 +10,7 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: 8000
+      TRUST_PROXY_HEADERS: "true"
       MODEL_PATH: /app/models
       CHROMA_DB_PATH: /app/chroma_db
     volumes:
@@ -25,7 +26,7 @@ services:
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev
     ports:
-      - "${BIND_HOST:-127.0.0.1}:${BACKEND_HOST_PORT:-8000}:8000"
+      - "${BACKEND_BIND_HOST:-127.0.0.1}:${BACKEND_HOST_PORT:-8000}:8000"
     restart: unless-stopped
 
   frontend:
@@ -40,20 +41,15 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    cap_add:
-      - CHOWN
-      - NET_BIND_SERVICE
-      - SETGID
-      - SETUID
     pids_limit: 256
     stop_grace_period: 15s
     tmpfs:
-      - /tmp:rw,noexec,nosuid,nodev
-      - /var/cache/nginx:rw,noexec,nosuid,nodev
-      - /var/log/nginx:rw,noexec,nosuid,nodev
-      - /var/run:rw,noexec,nosuid,nodev
+      - /tmp:rw,noexec,nosuid,nodev,uid=101,gid=101,mode=1777
+      - /var/cache/nginx:rw,noexec,nosuid,nodev,uid=101,gid=101,mode=0755
+      - /var/log/nginx:rw,noexec,nosuid,nodev,uid=101,gid=101,mode=0755
+      - /var/run:rw,noexec,nosuid,nodev,uid=101,gid=101,mode=0755
     ports:
-      - "${BIND_HOST:-127.0.0.1}:${FRONTEND_HOST_PORT:-3000}:80"
+      - "${FRONTEND_BIND_HOST:-127.0.0.1}:${FRONTEND_HOST_PORT:-3000}:8080"
     restart: unless-stopped
 
 volumes:

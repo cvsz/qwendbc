@@ -72,6 +72,21 @@ def test_rate_limit_returns_retry_after(
     assert int(limited.headers["retry-after"]) >= 1
 
 
+def test_rate_limit_uses_the_trusted_proxy_address_when_enabled(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(settings, "QWENDBC_ACCESS_TOKEN", "expected")
+    monkeypatch.setattr(settings, "REMOTE_RATE_LIMIT_PER_MINUTE", 1)
+    monkeypatch.setattr(settings, "TRUST_PROXY_HEADERS", True)
+    headers = {"Authorization": "Bearer expected"}
+
+    first = client.get("/protected", headers={**headers, "X-Real-IP": "192.0.2.10"})
+    second = client.get("/protected", headers={**headers, "X-Real-IP": "192.0.2.11"})
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+
+
 def test_remote_concurrency_is_bounded(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(settings, "REMOTE_MAX_CONCURRENT_REQUESTS", 1)
 

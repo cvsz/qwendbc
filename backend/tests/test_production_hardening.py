@@ -1,6 +1,7 @@
 from typing import Any
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from app.main import create_app
@@ -133,3 +134,48 @@ def test_chat_request_rejects_an_oversized_aggregate_payload() -> None:
 def test_model_file_cannot_escape_the_configured_model_directory() -> None:
     with pytest.raises(ValueError, match="MODEL_FILE"):
         Settings(_env_file=None, MODEL_FILE="../outside.gguf")
+
+
+def test_upload_transport_limit_rejects_large_declared_bodies_before_parsing() -> None:
+    application = create_app(Settings(_env_file=None))
+
+    with TestClient(application) as client:
+        response = client.post(
+            "/api/v1/documents/upload",
+            headers={"content-length": "8000000"},
+            content=b"",
+        )
+
+    assert response.status_code == 413
+
+
+def test_stream_remote_capacity_failure_is_returned_before_sse_headers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class RemoteRouter:
+        config = Settings(
+            _env_file=None,
+            REMOTE_MODELS_ENABLED=True,
+            QWENDBC_ACCESS_TOKEN="test-access-token-with-at-least-32-characters",
+        )
+
+        def validate_request(self, **_: Any) -> bool:
+            return True
+
+        def stream(self, **_: Any) -> Any:
+            raise AssertionError("stream must not start when capacity is unavailable")
+
+    def fail_reservation(_: Settings) -> Any:
+        raise HTTPException(status_code=429, detail="Request limit exceeded")
+
+    application = create_app(Settings(_env_file=None))
+    application.dependency_overrides[get_model_router] = lambda: RemoteRouter()
+    monkeypatch.setattr("app.routers.chat.reserve_remote_call", fail_reservation)
+
+    with TestClient(application) as client:
+        response = client.post(
+            "/api/v1/chat/completions/stream",
+            json={"messages": [{"role": "user", "content": "Hello"}]},
+        )
+
+    assert response.status_code == 429

@@ -20,26 +20,16 @@ interface, optional free-provider routing, and private document retrieval.
 #### For Users
 - [Getting Started](user-guide/getting-started.md)
 - [Chat Interface Usage](user-guide/chat-usage.md)
-- [Model Management](user-guide/model-management.md)
 - [Troubleshooting](user-guide/troubleshooting.md)
 
 #### For Developers
 - [Development Setup](development/setup.md)
-- [Code Structure](development/code-structure.md)
-- [Testing Guide](development/testing.md)
-- [API Development](development/api-development.md)
 
 #### For DevOps
 - [Docker Deployment](deployment/docker.md)
-- [Environment Configuration](deployment/environment-config.md)
-- [Monitoring & Logging](deployment/monitoring.md)
-- [Backup & Recovery](deployment/backup-recovery.md)
 
 #### For Security Teams
 - [Security Overview](security/overview.md)
-- [Vulnerability Management](security/vulnerability-management.md)
-- [Access Control](security/access-control.md)
-- [Data Privacy](security/data-privacy.md)
 
 ## 🏗️ Project Overview
 
@@ -71,11 +61,11 @@ QwenDBC is a full-stack application that enables local AI chat capabilities usin
 
 ```bash
 # Clone the repository
-git clone https://github.com/policedbc/qwendbc.git
+git clone https://github.com/cvsz/qwendbc.git
 cd qwendbc
 
 # Start with Docker Compose
-docker-compose up -d
+docker compose up -d
 
 # Access the application
 # Frontend: http://localhost:3000
@@ -123,9 +113,9 @@ docker-compose up -d
 
 ## 📞 Support
 
-- **Issues**: [GitHub Issues](https://github.com/policedbc/qwendbc/issues)
+- **Issues**: [GitHub Issues](https://github.com/cvsz/qwendbc/issues)
 - **Security Reports**: [SECURITY.md](../SECURITY.md)
-- **Discussions**: [GitHub Discussions](https://github.com/policedbc/qwendbc/discussions)
+- **Discussions**: [GitHub Discussions](https://github.com/cvsz/qwendbc/discussions)
 
 ## 📄 License
 

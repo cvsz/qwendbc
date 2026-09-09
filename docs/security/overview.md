@@ -51,13 +51,17 @@ the frontend bundle, a URL, or a browser-persisted setting.
 
 Authentication uses constant-time token comparison. The in-process limiter
 keys accounting by a hash of the token and the client address, so raw tokens
-are not used as map keys or logged. The limiter is process-local and fixed
-window; a multi-instance deployment must enforce shared quotas at the edge.
+are not used as map keys or logged. Compose enables `TRUST_PROXY_HEADERS` only
+for the backend behind the repository Nginx proxy, which overwrites
+`X-Real-IP`; direct deployments must leave it disabled unless their proxy is
+equally trusted. The limiter is process-local and fixed window; a multi-instance
+deployment must enforce shared quotas at the edge.
 
 ## Request and response safety
 
 Pydantic validation bounds message count/content, aggregate UTF-8 chat bytes,
-generation parameters, document query size, retrieval count, and upload size.
+generation parameters, document query size, retrieval count, upload size, and
+the total local RAG chunk quota. Embeddings are generated in bounded batches.
 Remote calls have explicit timeouts, a non-blocking concurrency limit, and
 provider fallback behavior. Upstream exceptions are mapped to safe public
 messages; credentials, raw upstream bodies, and internal paths are not part of
@@ -112,8 +116,9 @@ limits process count, and provides only `/tmp`, model/cache, and RAG storage
 as writable locations. The frontend root filesystem is also read-only with
 the temporary Nginx paths supplied as tmpfs.
 
-Keep the backend host port private. If changing `BIND_HOST` from its loopback
-default, use a firewall and an authenticated TLS reverse proxy. Configure the
+Keep the backend host port private. If changing `FRONTEND_BIND_HOST` from its
+loopback default, use a firewall and an authenticated TLS reverse proxy. Keep
+`BACKEND_BIND_HOST` loopback/private. Configure the
 edge with HSTS, request-size limits no larger than the application contract,
 connection/request rate limits, access logs with sensitive headers redacted,
 and a health-check policy that does not expose protected data.

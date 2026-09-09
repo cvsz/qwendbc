@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     # Server
     HOST: str = "127.0.0.1"
     PORT: int = Field(default=8000, ge=1, le=65535)
+    TRUST_PROXY_HEADERS: bool = False
 
     # Model
     MODEL_NAME: str = "Qwen/Qwen2.5-1.5B-Instruct-GGUF"
@@ -71,7 +72,9 @@ class Settings(BaseSettings):
     RAG_COLLECTION: str = "documents"
     RAG_CHUNK_SIZE: int = Field(default=1000, ge=100, le=10000)
     RAG_CHUNK_OVERLAP: int = Field(default=150, ge=0, le=5000)
-    MAX_UPLOAD_BYTES: int = Field(default=5_000_000, ge=1024, le=100_000_000)
+    RAG_EMBED_BATCH_SIZE: int = Field(default=32, ge=1, le=256)
+    MAX_RAG_CHUNKS: int = Field(default=100_000, ge=1, le=1_000_000)
+    MAX_UPLOAD_BYTES: int = Field(default=5_000_000, ge=1024, le=5_000_000)
 
     # CORS
     ALLOWED_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"

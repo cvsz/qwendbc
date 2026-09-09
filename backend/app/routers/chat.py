@@ -15,7 +15,7 @@ from app.services.llm_service import LLMService, llm_service
 from app.services.model_router import ModelRouter
 from app.services.provider_types import ProviderError
 from app.services.rag_service import RAGService
-from app.services.access_control import require_access
+from app.services.access_control import RemoteCallLease, require_access, reserve_remote_call
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -103,23 +103,31 @@ async def get_model_info(
 async def load_model(
     service: LLMService = Depends(get_llm_service), _: None = Depends(require_access)
 ) -> dict[str, str]:
-    if service.is_loaded:
-        return {"status": "already_loaded", "model": settings.MODEL_NAME}
-
-    success = await asyncio.to_thread(service.load_model)
+    load_with_status = getattr(service, "load_model_status", None)
+    if callable(load_with_status):
+        success, already_loaded = await asyncio.to_thread(load_with_status)
+    else:
+        already_loaded = bool(service.is_loaded)
+        success = await asyncio.to_thread(service.load_model)
     if not success:
         raise HTTPException(status_code=500, detail="Failed to load model")
-    return {"status": "loaded", "model": settings.MODEL_NAME}
+    return {
+        "status": "already_loaded" if already_loaded else "loaded",
+        "model": settings.MODEL_NAME,
+    }
 
 
 @router.post("/model/unload")
 async def unload_model(
     service: LLMService = Depends(get_llm_service), _: None = Depends(require_access)
 ) -> dict[str, str]:
-    if not service.is_loaded:
-        return {"status": "not_loaded"}
-    await asyncio.to_thread(service.unload_model)
-    return {"status": "unloaded"}
+    unload_with_status = getattr(service, "unload_model_status", None)
+    if callable(unload_with_status):
+        was_loaded = await asyncio.to_thread(unload_with_status)
+    else:
+        was_loaded = bool(service.is_loaded)
+        await asyncio.to_thread(service.unload_model)
+    return {"status": "unloaded" if was_loaded else "not_loaded"}
 
 
 @router.post("/chat/completions", response_model=ChatResponse)
@@ -163,10 +171,18 @@ async def chat_completions_stream(
     rag: RAGService = Depends(get_rag_service),
     _: None = Depends(require_access),
 ) -> StreamingResponse:
+    remote_capacity: RemoteCallLease | None = None
+    requires_remote = False
     validate_request = getattr(model_router, "validate_request", None)
     if callable(validate_request):
         try:
-            validate_request(provider=request.provider, model=request.model)
+            requires_remote = bool(
+                await asyncio.to_thread(
+                    validate_request,
+                    provider=request.provider,
+                    model=request.model,
+                )
+            )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except RuntimeError as exc:
@@ -176,9 +192,19 @@ async def chat_completions_stream(
     ):
         raise HTTPException(status_code=400, detail="Model not loaded")
 
-    messages, _rag_sources = await _inject_rag_context(
-        [message.model_dump() for message in request.messages], request, rag
-    )
+    try:
+        messages, _rag_sources = await _inject_rag_context(
+            [message.model_dump() for message in request.messages], request, rag
+        )
+    except Exception:
+        if remote_capacity is not None:
+            remote_capacity.release()
+        raise
+
+    # Reserve immediately before opening the response so RAG work cannot hold a
+    # remote-provider slot while it waits on local embedding/search work.
+    if requires_remote:
+        remote_capacity = reserve_remote_call(getattr(model_router, "config", settings))
 
     # Keep this a synchronous generator. Starlette iterates sync response bodies in a
     # worker thread, preventing CPU-bound llama.cpp iteration from blocking the event loop.
@@ -191,12 +217,15 @@ async def chat_completions_stream(
                 temperature=request.temperature,
                 top_p=request.top_p,
                 max_tokens=request.max_tokens,
+                remote_capacity=remote_capacity,
             ):
                 yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
         except Exception:
             logger.exception("Streaming chat completion failed")
             yield f"data: {json.dumps({'error': 'Internal server error'})}\n\n"
         finally:
+            if remote_capacity is not None:
+                remote_capacity.release()
             yield "data: [DONE]\n\n"
 
     return StreamingResponse(

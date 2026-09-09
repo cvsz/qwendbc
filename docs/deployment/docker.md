@@ -25,7 +25,8 @@ At minimum, production requires:
 ```dotenv
 ENVIRONMENT=production
 DEBUG=false
-BIND_HOST=127.0.0.1
+BACKEND_BIND_HOST=127.0.0.1
+FRONTEND_BIND_HOST=127.0.0.1
 ALLOWED_ORIGINS=https://chat.example.com
 ALLOWED_HOSTS=chat.example.com
 QWENDBC_ACCESS_TOKEN=<inject-a-random-token-of-at-least-32-characters>
@@ -50,7 +51,11 @@ provider endpoints must use HTTPS in production.
 Compose deliberately overrides `HOST`, `PORT`, `MODEL_PATH`, and
 `CHROMA_DB_PATH` with container values. The historical `CHROMA_DB_PATH` name
 now points to a directory containing the private SQLite RAG database and its
-WAL files.
+WAL files. Existing Chroma data is not auto-migrated: the service detects a
+legacy `chroma.sqlite3` store and requires a reviewed re-index/migration.
+`RAG_EMBED_BATCH_SIZE` bounds embedding work per batch and
+`MAX_RAG_CHUNKS` provides a hard local index quota; tune both to the host's
+memory and storage budget.
 
 ## Build and start
 
@@ -90,9 +95,10 @@ frontend filesystem is also read-only; Nginx runtime, cache, log, and temp
 paths are tmpfs mounts.
 
 Do not add host mounts for the repository, `.env`, private keys, or arbitrary
-host paths. Do not publish port 8000 publicly. If a host bind must be changed,
-put an edge firewall and authenticated TLS proxy in front of the frontend
-port, and retain the backend as a private service.
+host paths. Do not publish the backend port publicly. If a host bind must be
+changed, set only `FRONTEND_BIND_HOST` behind an edge firewall and
+authenticated TLS proxy; retain `BACKEND_BIND_HOST=127.0.0.1` or another
+private interface.
 
 ## TLS edge contract
 

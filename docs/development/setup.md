@@ -60,9 +60,12 @@ Important settings include:
 - `QWENDBC_ACCESS_TOKEN`, `REMOTE_RATE_LIMIT_PER_MINUTE`, and
   `REMOTE_MAX_CONCURRENT_REQUESTS` for access/remote limits;
 - `CHROMA_DB_PATH`, `EMBEDDING_MODEL`, `RAG_CHUNK_SIZE`,
-  `RAG_CHUNK_OVERLAP`, and `MAX_UPLOAD_BYTES` for local retrieval;
+  `RAG_CHUNK_OVERLAP`, `RAG_EMBED_BATCH_SIZE`, `MAX_RAG_CHUNKS`, and
+  `MAX_UPLOAD_BYTES` for local retrieval;
 - `ALLOWED_ORIGINS`, `ALLOWED_HOSTS`, and `MAX_CHAT_CONTENT_BYTES` for web
   boundaries.
+- `TRUST_PROXY_HEADERS` only when a trusted reverse proxy overwrites
+  `X-Real-IP`; leave it false for direct backend access.
 
 `CHROMA_DB_PATH` is a historical compatibility name. The current RAG store is
 SQLite WAL plus serialized normalized embeddings in that directory; ChromaDB

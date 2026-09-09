@@ -185,6 +185,15 @@ def test_load_does_not_enable_disk_cache(monkeypatch: pytest.MonkeyPatch) -> Non
     assert "cache" not in captured
 
 
+def test_load_and_unload_status_operations_are_atomic() -> None:
+    service = make_service(threading.RLock())
+
+    loaded, already_loaded = service.load_model_status()
+    assert (loaded, already_loaded) == (True, True)
+    assert service.unload_model_status() is True
+    assert service.unload_model_status() is False
+
+
 def test_download_model_verifies_the_configured_checksum(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Any
 ) -> None:

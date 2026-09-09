@@ -24,7 +24,10 @@ Open:
 - Backend: http://localhost:8000
 - OpenAPI: http://localhost:8000/docs
 
-Docker publishes both ports on `127.0.0.1` by default. Keep `BIND_HOST=127.0.0.1` unless you have an authenticated reverse proxy, VPN, zero-trust access layer, or equivalent network control. Setting `BIND_HOST=0.0.0.0` also exposes the frontend's `/api/` reverse proxy, not just the static UI.
+Docker publishes both ports on `127.0.0.1` by default. Keep
+`BACKEND_BIND_HOST=127.0.0.1` so the backend remains private. If an edge needs
+to reach the UI, set only `FRONTEND_BIND_HOST` and keep the backend port on a
+loopback/private interface.
 
 If ports 8000 or 3000 are already occupied, use for example
 `make install BACKEND_HOST_PORT=8100 FRONTEND_HOST_PORT=3100`.
@@ -155,7 +158,11 @@ curl -X POST http://localhost:8000/api/v1/search \
   -d '{"query":"deployment steps","top_k":5}'
 ```
 
-Only UTF-8 text uploads are supported by the current API. Nginx permits request bodies up to 100 MiB so the backend's lower `MAX_UPLOAD_BYTES` setting remains the authoritative application limit. The local SQLite store is initialized lazily and should be included in encrypted, tested backups.
+Only UTF-8 text uploads are supported by the current API. Nginx rejects bodies
+above 6 MiB before multipart parsing, while the backend's lower
+`MAX_UPLOAD_BYTES` setting (5 MiB maximum) remains authoritative. The local
+SQLite store is initialized lazily and should be included in encrypted, tested
+backups.
 
 ## Troubleshooting
 
@@ -177,5 +184,9 @@ For local development, verify Python 3.13 is active and rerun `make setup-backen
 ### Frontend cannot reach the API
 
 In Docker, Nginx proxies `/api/` to the backend service. In local development, Vite proxies `/api/` to `http://127.0.0.1:8000`. Use `VITE_API_URL` only when a deployment intentionally needs a different API origin.
+
+The production Nginx policy permits same-origin API calls by default. If a
+deployment builds with an external `VITE_API_URL`, update the edge/browser CSP
+`connect-src` allowlist to that exact HTTPS origin.
 
 > When `QWENDBC_ACCESS_TOKEN` is set, protected API calls require a bearer token. Production always requires that token. Do not expose either the backend or the frontend API proxy to an untrusted network without TLS, the application token, and an authenticated reverse proxy or equivalent access control.

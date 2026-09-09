@@ -14,6 +14,7 @@ logger = get_logger(__name__)
 
 
 _MAX_EMBEDDING_DIMENSION = 16_384
+_RAG_SCAN_BATCH_SIZE = 256
 
 
 class RAGService:
@@ -32,8 +33,6 @@ class RAGService:
             if self._connection is not None and self._embedding_model is not None:
                 return
 
-            from sentence_transformers import SentenceTransformer
-
             storage_dir = Path(settings.CHROMA_DB_PATH)
             storage_dir.mkdir(parents=True, exist_ok=True)
             try:
@@ -41,8 +40,16 @@ class RAGService:
             except OSError:
                 logger.warning("Could not restrict RAG storage directory permissions")
 
+            database_path = storage_dir / "rag.sqlite3"
+            if not database_path.exists() and (storage_dir / "chroma.sqlite3").exists():
+                raise RuntimeError(
+                    "Legacy Chroma store detected; re-index documents before using SQLite RAG"
+                )
+
+            from sentence_transformers import SentenceTransformer
+
             connection = sqlite3.connect(
-                storage_dir / "rag.sqlite3",
+                database_path,
                 check_same_thread=False,
                 timeout=30.0,
             )
@@ -62,7 +69,7 @@ class RAGService:
                     """)
                 connection.commit()
                 try:
-                    (storage_dir / "rag.sqlite3").chmod(0o600)
+                    database_path.chmod(0o600)
                 except OSError:
                     logger.warning("Could not restrict RAG database file permissions")
 
@@ -148,27 +155,37 @@ class RAGService:
             self._ensure_ready()
             assert self._connection is not None
             chunks = self._chunk_text(content)
-            embeddings = self._embedding_model.encode(
-                chunks,
-                normalize_embeddings=True,
-                show_progress_bar=False,
-            )
+            existing_count_row = self._connection.execute(
+                "SELECT COUNT(*) FROM rag_chunks"
+            ).fetchone()
+            existing_count = int(existing_count_row[0]) if existing_count_row else 0
+            if existing_count + len(chunks) > settings.MAX_RAG_CHUNKS:
+                raise ValueError("RAG chunk quota exceeded")
+
             source_metadata = json.dumps(metadata or {}, ensure_ascii=False, default=str)
             rows = []
-            for index, (chunk, embedding) in enumerate(zip(chunks, embeddings, strict=True)):
-                chunk_metadata = {
-                    "filename": filename,
-                    "chunk_index": index,
-                    "source_metadata": source_metadata,
-                }
-                rows.append(
-                    (
-                        f"doc-{uuid.uuid4().hex}",
-                        chunk,
-                        json.dumps(chunk_metadata, ensure_ascii=False),
-                        sqlite3.Binary(self._serialize_embedding(embedding)),
-                    )
+            batch_size = settings.RAG_EMBED_BATCH_SIZE
+            for batch_start in range(0, len(chunks), batch_size):
+                batch = chunks[batch_start : batch_start + batch_size]
+                embeddings = self._embedding_model.encode(
+                    batch,
+                    normalize_embeddings=True,
+                    show_progress_bar=False,
                 )
+                for offset, (chunk, embedding) in enumerate(zip(batch, embeddings, strict=True)):
+                    chunk_metadata = {
+                        "filename": filename,
+                        "chunk_index": batch_start + offset,
+                        "source_metadata": source_metadata,
+                    }
+                    rows.append(
+                        (
+                            f"doc-{uuid.uuid4().hex}",
+                            chunk,
+                            json.dumps(chunk_metadata, ensure_ascii=False),
+                            sqlite3.Binary(self._serialize_embedding(embedding)),
+                        )
+                    )
             with self._connection:
                 self._connection.executemany(
                     """
@@ -183,8 +200,8 @@ class RAGService:
         with self._lock:
             self._ensure_ready()
             assert self._connection is not None
-            if top_k < 1:
-                raise ValueError("top_k must be at least 1")
+            if top_k < 1 or top_k > 50:
+                raise ValueError("top_k must be between 1 and 50")
 
             query_embedding = self._embedding_model.encode(
                 [query],
@@ -192,32 +209,33 @@ class RAGService:
                 show_progress_bar=False,
             )
             query_values = self._embedding_values(query_embedding[0])
-            rows = self._connection.execute(
+            cursor = self._connection.execute(
                 "SELECT id, document, metadata_json, embedding FROM rag_chunks"
-            ).fetchall()
-            if not rows:
-                return []
-
-            results: list[dict[str, Any]] = []
-            for item_id, document, metadata_json, raw_embedding in rows:
-                try:
-                    metadata = json.loads(metadata_json)
-                except (TypeError, json.JSONDecodeError):
-                    metadata = {}
-                similarity = self._cosine_similarity(
-                    query_values,
-                    self._deserialize_embedding(raw_embedding),
-                )
-                results.append(
-                    {
+            )
+            best_results: list[dict[str, Any]] = []
+            while rows := cursor.fetchmany(_RAG_SCAN_BATCH_SIZE):
+                for item_id, document, metadata_json, raw_embedding in rows:
+                    try:
+                        metadata = json.loads(metadata_json)
+                    except (TypeError, json.JSONDecodeError):
+                        metadata = {}
+                    similarity = self._cosine_similarity(
+                        query_values,
+                        self._deserialize_embedding(raw_embedding),
+                    )
+                    result = {
                         "id": item_id,
                         "document": document,
                         "metadata": metadata if isinstance(metadata, dict) else {},
                         "distance": 1.0 - similarity,
                     }
-                )
-            results.sort(key=lambda result: float(result["distance"]))
-            return results[:top_k]
+                    if len(best_results) < top_k:
+                        best_results.append(result)
+                        best_results.sort(key=lambda item: float(item["distance"]))
+                    elif float(result["distance"]) < float(best_results[-1]["distance"]):
+                        best_results[-1] = result
+                        best_results.sort(key=lambda item: float(item["distance"]))
+            return best_results
 
     def close(self) -> None:
         with self._lock:

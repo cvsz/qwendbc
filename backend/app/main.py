@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.routers import chat, documents
@@ -60,6 +61,20 @@ def create_app(config: Settings = settings) -> FastAPI:
 
     @application.middleware("http")
     async def add_security_headers(request: Request, call_next):
+        if request.url.path == "/api/v1/documents/upload":
+            content_length = request.headers.get("content-length")
+            try:
+                declared_length = int(content_length) if content_length else None
+            except ValueError:
+                declared_length = None
+            if (
+                declared_length is not None
+                and declared_length > config.MAX_UPLOAD_BYTES + 2_000_000
+            ):
+                return JSONResponse(
+                    status_code=413,
+                    content={"detail": "Request body exceeds the upload limit"},
+                )
         response = await call_next(request)
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")

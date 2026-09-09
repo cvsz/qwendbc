@@ -33,7 +33,7 @@ Returns basic application information.
 ```json
 {
   "name": "Qwen LLM App",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "docs": "/docs"
 }
 ```
@@ -54,7 +54,7 @@ Check the health status of the API and model.
 ```json
 {
   "status": "healthy",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "model_loaded": true,
   "providers": [],
   "active_provider": null,
@@ -277,9 +277,14 @@ Connection: keep-alive
 - `200 OK` - Stream started successfully
 - `400 Bad Request` - Model not loaded
 - `401 Unauthorized` - Missing or invalid bearer token when access is configured
-- `429 Too Many Requests` - Access or remote concurrency limit exceeded
+- `429 Too Many Requests` - Access or remote concurrency limit exceeded before
+  the SSE response starts
 - `503 Service Unavailable` - No provider is available
 - `500 Internal Server Error` - Streaming failed unexpectedly
+
+After the SSE response starts, provider failures are represented by a safe
+`data: {"error":"..."}` event followed by `data: [DONE]`; HTTP status cannot
+be changed after streaming headers have been sent.
 
 ---
 
@@ -528,4 +533,4 @@ curl -X POST http://localhost:8000/api/v1/chat/completions \
 ---
 
 *Last updated: September 2026*
-*Version: 1.0.0*
+*Version: 1.1.0*

@@ -46,7 +46,8 @@ immutable audit log, secret-manager integration, TLS termination, HA/failover,
 or a hosted backup service. The process-local token is an application access
 boundary, not a replacement for organization-wide identity and authorization.
 
-Docker uses `BIND_HOST=127.0.0.1` by default. For remote access, terminate TLS
+Docker uses loopback-only `BACKEND_BIND_HOST` and `FRONTEND_BIND_HOST` defaults.
+For remote access, terminate TLS
 at an authenticated reverse proxy, VPN, or zero-trust access layer; set
 `ENVIRONMENT=production`, explicit `ALLOWED_ORIGINS` and `ALLOWED_HOSTS`, and a
 strong `QWENDBC_ACCESS_TOKEN`; keep the backend port private. Do not treat the

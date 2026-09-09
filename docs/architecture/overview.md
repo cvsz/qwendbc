@@ -13,7 +13,7 @@ Browser
 External TLS / identity edge (production)
   |
   v
-Nginx frontend :80  -- /api/ -->  FastAPI backend :8000
+Nginx frontend :8080  -- /api/ -->  FastAPI backend :8000
                                       |
                     +-----------------+------------------+
                     |                                    |
@@ -83,7 +83,8 @@ chunked, embeddings are generated lazily with the configured
 database at `CHROMA_DB_PATH`. Search performs bounded in-process cosine
 similarity over persisted embeddings; SQLite is not exposed as a network
 service. The setting and volume retain their historical Chroma names for
-configuration/data-path compatibility.
+configuration/data-path compatibility only; existing Chroma data requires a
+reviewed re-index/migration and is not silently treated as empty.
 
 ## Security boundaries
 
