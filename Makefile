@@ -88,7 +88,7 @@ test-backend: $(VENV)/bin/python
 	PYTHONPATH=backend $(PYTEST) -c backend/pyproject.toml backend/tests --cov=app --cov-report=term-missing
 
 test-frontend:
-	cd frontend && $(NPM) run lint && $(NPM) run build
+	cd frontend && $(NPM) test && $(NPM) run lint && $(NPM) run build
 
 test: test-backend test-frontend
 

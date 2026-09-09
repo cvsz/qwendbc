@@ -9,7 +9,8 @@ make install
 ```
 
 This creates `.env` from `configs/.env.example` when needed, builds both
-services, starts the full stack, and waits for the health checks. Use
+services, starts the full stack, and waits for the health checks. Remote
+providers remain disabled until you explicitly configure them. Use
 `make docker-down` to stop it. The lower-level equivalent remains:
 
 ```bash
@@ -28,7 +29,7 @@ Docker publishes both ports on `127.0.0.1` by default. Keep `BIND_HOST=127.0.0.1
 If ports 8000 or 3000 are already occupied, use for example
 `make install BACKEND_HOST_PORT=8100 FRONTEND_HOST_PORT=3100`.
 
-The model is downloaded only when you click **Load Model** or call the model-load endpoint. The GGUF is stored in the Docker `model_data` volume and is not committed to Git.
+The model is downloaded only when you click **Load local model** or call the model-load endpoint. The GGUF is stored in the Docker `model_data` volume and is not committed to Git.
 
 Compose loads `configs/.env.example` and then the optional root `.env` into the backend container. This means generation/RAG settings in `.env` are honored in Docker; Compose only overrides container-internal host and data paths.
 
@@ -80,6 +81,49 @@ curl -X POST http://localhost:8000/api/v1/chat/completions \
   -d '{"messages":[{"role":"user","content":"Hello"}],"max_tokens":128}'
 ```
 
+## Free-model routing
+
+The safe default is local-compatible `MODEL_MODE=auto_free` with
+`REMOTE_MODELS_ENABLED=false`. To enable hosted free routing, set a strong
+application token and authorized provider settings in the root `.env`:
+
+```dotenv
+REMOTE_MODELS_ENABLED=true
+QWENDBC_ACCESS_TOKEN=replace-with-an-operator-token
+FREE_PROVIDER_ORDER=kilo,opencode,openrouter,local
+```
+
+Never copy provider keys into the frontend or commit them. QwenDBC reads the
+project `.env` and process environment only; it never loads the shared
+`.env.ai` operator reference. The frontend's **Operator access** field stores
+the application token only in the current browser session.
+
+Inspect the eligible catalog:
+
+```bash
+curl http://localhost:8000/api/v1/models
+```
+
+Authorized chat and catalog refresh requests use the bearer token:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/models/refresh \
+  -H "Authorization: Bearer ${QWENDBC_ACCESS_TOKEN}"
+
+curl -X POST http://localhost:8000/api/v1/chat/completions \
+  -H "Authorization: Bearer ${QWENDBC_ACCESS_TOKEN}" \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"Hello"}],"use_rag":false}'
+```
+
+Automatic fallback follows `kilo,opencode,openrouter,local`. Only free text
+models are eligible, and the response reports its selected provider/model in
+`qwendbc` metadata. Set `MODEL_MODE=local` or
+`REMOTE_MODELS_ENABLED=false`, then restart, to roll back remote routing.
+
+The web interface persists **Day**, **Night**, or **System** theme selection;
+System follows the browser preference and reduced-motion settings are honored.
+
 ## Document retrieval
 
 ```bash
@@ -114,4 +158,4 @@ For local development, verify Python 3.13 is active and rerun `make setup-backen
 
 In Docker, Nginx proxies `/api/` to the backend service. In local development, Vite proxies `/api/` to `http://127.0.0.1:8000`. Use `VITE_API_URL` only when a deployment intentionally needs a different API origin.
 
-> The application has no built-in authentication. Do not expose either the backend or the frontend API proxy to an untrusted network without an authenticated reverse proxy or equivalent access control.
+> When `QWENDBC_ACCESS_TOKEN` is set, protected API calls require a bearer token. Do not expose either the backend or the frontend API proxy to an untrusted network without that application token plus an authenticated reverse proxy or equivalent access control.
