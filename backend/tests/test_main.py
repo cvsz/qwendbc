@@ -83,6 +83,20 @@ def test_model_info_is_available_when_unloaded(client: TestClient) -> None:
     assert response.json()["loaded"] is False
 
 
+@pytest.mark.parametrize("path", ["/api/v1/model/info", "/api/v1/models"])
+def test_model_surfaces_require_access_when_token_is_configured(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    path: str,
+) -> None:
+    app.dependency_overrides[get_llm_service] = lambda: FakeLLMService(loaded=False)
+    monkeypatch.setattr(settings, "QWENDBC_ACCESS_TOKEN", "configured-access-token")
+
+    response = client.get(path)
+
+    assert response.status_code == 401
+
+
 def test_chat_completion_requires_loaded_model(client: TestClient) -> None:
     fake = FakeLLMService(loaded=False)
     app.dependency_overrides[get_llm_service] = lambda: fake

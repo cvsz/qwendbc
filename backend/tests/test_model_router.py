@@ -102,7 +102,7 @@ def make_settings(**overrides: Any) -> Settings:
     return Settings(
         _env_file=None,
         REMOTE_MODELS_ENABLED=True,
-        QWENDBC_ACCESS_TOKEN="test-access-token",
+        QWENDBC_ACCESS_TOKEN="test-access-token-with-at-least-32-characters",
         **overrides,
     )
 
@@ -145,7 +145,25 @@ def test_stream_falls_back_only_before_first_content_chunk() -> None:
 
     chunks = list(router.stream([{"role": "user", "content": "hello"}], max_tokens=16))
 
-    assert chunks == [stream_chunk("answer", "opencode-free")]
+    assert chunks == [
+        {
+            **stream_chunk("answer", "opencode-free"),
+            "qwendbc": {"provider": "opencode", "model": "opencode-free", "fallback": True},
+        }
+    ]
+
+
+def test_stream_includes_selected_route_metadata() -> None:
+    provider = FakeProvider("kilo", text="answer")
+    router = ModelRouter(FakeLocalService(loaded=False), make_settings(), providers=[provider])
+
+    chunks = list(router.stream([{"role": "user", "content": "hello"}], max_tokens=16))
+
+    assert chunks[0]["qwendbc"] == {
+        "provider": "kilo",
+        "model": "kilo-free",
+        "fallback": False,
+    }
 
 
 def test_catalog_reports_only_non_secret_provider_status() -> None:
@@ -192,6 +210,20 @@ def test_catalog_refreshes_provider_after_the_router_ttl(monkeypatch: pytest.Mon
     router.list_models()
 
     assert refreshes == [False, True]
+
+
+def test_catalog_provider_failure_is_isolated_from_the_catalog_response() -> None:
+    provider = FakeProvider("kilo", text="answer")
+
+    def fail_list_models(refresh: bool = False) -> list[ProviderModel]:
+        raise RuntimeError("provider response contains a private detail")
+
+    provider.list_models = fail_list_models  # type: ignore[method-assign]
+    router = ModelRouter(FakeLocalService(loaded=False), make_settings(), providers=[provider])
+
+    catalog = router.list_models()
+
+    assert [item for item in catalog.data if item.provider == "kilo"] == []
 
 
 def test_explicit_model_rejects_an_unknown_or_non_free_model() -> None:

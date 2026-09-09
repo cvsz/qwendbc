@@ -2,6 +2,8 @@ import asyncio
 import json
 from collections.abc import Generator
 from datetime import datetime, timezone
+import threading
+from weakref import WeakKeyDictionary
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
@@ -18,6 +20,8 @@ from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
 router = APIRouter()
+_router_cache: WeakKeyDictionary[object, ModelRouter] = WeakKeyDictionary()
+_router_cache_lock = threading.RLock()
 
 
 def get_llm_service() -> LLMService:
@@ -25,7 +29,17 @@ def get_llm_service() -> LLMService:
 
 
 def get_model_router(service: LLMService = Depends(get_llm_service)) -> ModelRouter:
-    return ModelRouter(service)
+    try:
+        with _router_cache_lock:
+            cached = _router_cache.get(service)
+            if cached is None:
+                cached = ModelRouter(service)
+                _router_cache[service] = cached
+            return cached
+    except TypeError:
+        # A custom dependency may return an unhashable test double. It is safer to
+        # serve that request than to coerce arbitrary objects into cache keys.
+        return ModelRouter(service)
 
 
 async def _inject_rag_context(
@@ -80,6 +94,7 @@ async def health_check() -> dict[str, object]:
 @router.get("/model/info", response_model=ModelInfo)
 async def get_model_info(
     model_router: ModelRouter = Depends(get_model_router),
+    _: None = Depends(require_access),
 ) -> dict[str, object]:
     return model_router.get_model_info()
 
@@ -196,12 +211,14 @@ async def chat_completions_stream(
 
 
 @router.get("/models", response_model=ModelsResponse)
-async def list_models(model_router: ModelRouter = Depends(get_model_router)) -> ModelsResponse:
-    return model_router.list_models()
+async def list_models(
+    model_router: ModelRouter = Depends(get_model_router), _: None = Depends(require_access)
+) -> ModelsResponse:
+    return await asyncio.to_thread(model_router.list_models)
 
 
 @router.post("/models/refresh", response_model=ModelsResponse)
 async def refresh_models(
     model_router: ModelRouter = Depends(get_model_router), _: None = Depends(require_access)
 ) -> ModelsResponse:
-    return model_router.list_models(refresh=True)
+    return await asyncio.to_thread(model_router.list_models, refresh=True)

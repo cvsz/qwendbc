@@ -14,6 +14,10 @@ _ROUTE_ALIASES = {
     "openrouter": frozenset({"openrouter/free"}),
 }
 _ALL_ROUTE_ALIASES = frozenset().union(*_ROUTE_ALIASES.values())
+_DISALLOWED_MODEL_IDS = {
+    "openrouter": frozenset({"openrouter/auto"}),
+    "opencode": frozenset({"opencode-go", "opencode-go/free"}),
+}
 _OPENCODE_FREE_IDS = frozenset(
     {
         "big-pickle",
@@ -49,7 +53,9 @@ class OpenAICompatibleProvider:
         self._configured_free_ids = frozenset(
             model
             for model in free_ids
-            if model and (model not in _ALL_ROUTE_ALIASES or model in owned_aliases)
+            if model
+            and model not in _DISALLOWED_MODEL_IDS.get(self.name, frozenset())
+            and (model not in _ALL_ROUTE_ALIASES or model in owned_aliases)
         )
         self._catalog: list[ProviderModel] | None = None
 
@@ -149,6 +155,8 @@ class OpenAICompatibleProvider:
             or not isinstance(pricing, dict)
             or not isinstance(architecture, dict)
         ):
+            return None
+        if model_id in _DISALLOWED_MODEL_IDS.get(self.name, frozenset()):
             return None
         if not self._is_zero(pricing.get("prompt")) or not self._is_zero(pricing.get("completion")):
             return None

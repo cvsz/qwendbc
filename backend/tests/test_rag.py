@@ -1,4 +1,5 @@
 from collections.abc import Generator
+from types import ModuleType
 from typing import Any
 
 import pytest
@@ -7,6 +8,8 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.routers.chat import get_model_router
 from app.routers.documents import get_rag_service
+from app.schemas.config import settings
+from app.services.rag_service import RAGService
 
 
 class FakeRAGService:
@@ -54,6 +57,16 @@ def test_upload_document_success(client: TestClient) -> None:
     )
     assert response.status_code == 200
     assert response.json() == {"filename": "test.txt", "chunks_added": 2}
+
+
+def test_upload_document_normalizes_untrusted_filename(client: TestClient) -> None:
+    response = client.post(
+        "/api/v1/documents/upload",
+        files={"file": ("../unsafe\nname.txt", b"Test document content", "text/plain")},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["filename"] == "unsafe name.txt"
 
 
 def test_upload_rejects_non_utf8(client: TestClient) -> None:
@@ -157,3 +170,31 @@ def test_streaming_chat_rag_injects_labeled_context_before_completion(client: Te
         "role": "system",
         "content": "Retrieved context:\n[1] test.txt\nmatching text",
     }
+
+
+def test_rag_persists_normalized_embeddings_without_remote_vector_server(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeSentenceTransformer:
+        def __init__(self, _: str, **__: Any) -> None:
+            pass
+
+        def encode(self, texts: list[str], **_: Any) -> list[list[float]]:
+            return [[1.0, 0.0] if "apple" in text.lower() else [0.0, 1.0] for text in texts]
+
+    fake_module = ModuleType("sentence_transformers")
+    fake_module.SentenceTransformer = FakeSentenceTransformer  # type: ignore[attr-defined]
+    monkeypatch.setitem(__import__("sys").modules, "sentence_transformers", fake_module)
+    monkeypatch.setattr(settings, "CHROMA_DB_PATH", str(tmp_path / "rag-data"))
+
+    service = RAGService()
+    try:
+        assert service.add_document("fruit.txt", "apple notes") == 1
+
+        results = service.search("apple", top_k=1)
+
+        assert results[0]["document"] == "apple notes"
+        assert results[0]["metadata"]["filename"] == "fruit.txt"
+    finally:
+        service.close()

@@ -1,242 +1,132 @@
 # Architecture Overview
 
-This document describes the architecture of QwenDBC, a local LLM full-stack application.
+QwenDBC is a local-first FastAPI and React application. Docker Compose runs a
+static React build behind Nginx and keeps the backend, model files, and local
+RAG data in a private service boundary.
 
-## System Architecture
+## Runtime topology
 
-### High-Level Overview
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         Client Layer                             │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │              React Frontend (Port 3000)                  │    │
-│  │  - Chat Interface                                        │    │
-│  │  - Model Management UI                                   │    │
-│  │  - Real-time Streaming                                   │    │
-│  └─────────────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              │ HTTP/REST API
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                        Application Layer                         │
-│  ┌─────────────────────────────────────────────────────────┐    │
-│  │              FastAPI Backend (Port 8000)                 │    │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │    │
-│  │  │   Routers    │  │   Schemas    │  │   Services   │   │    │
-│  │  │  - Chat      │  │  - Pydantic  │  │  - LLM       │   │    │
-│  │  │  - Health    │  │  - Validation│  │  - RAG       │   │    │
-│  │  │  - Model     │  │  - Config    │  │  - Utils     │   │    │
-│  │  └──────────────┘  └──────────────┘  └──────────────┘   │    │
-│  └─────────────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              │ Function Calls
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                         Engine Layer                             │
-│  ┌──────────────────┐         ┌──────────────────┐              │
-│  │  llama-cpp-python│         │   ChromaDB       │              │
-│  │  - Model Loading │         │  - Vector Store  │              │
-│  │  - Inference     │         │  - Embeddings    │              │
-│  │  - Streaming     │         │  - Similarity    │              │
-│  └──────────────────┘         └──────────────────┘              │
-│                                                                  │
-│  ┌──────────────────┐         ┌──────────────────┐              │
-│  │ HuggingFace Hub  │         │ sentence-trans.  │              │
-│  │  - Model Download│         │  - Embedding Gen │              │
-│  └──────────────────┘         └──────────────────┘              │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                        Storage Layer                             │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
-│  │ Model Files  │  │ Chroma DB    │  │ Logs         │          │
-│  │ ./models     │  │ ./chroma_db  │  │ ./logs       │          │
-│  └──────────────┘  └──────────────┘  └──────────────┘          │
-└─────────────────────────────────────────────────────────────────┘
+```text
+Browser
+  |
+  v
+External TLS / identity edge (production)
+  |
+  v
+Nginx frontend :80  -- /api/ -->  FastAPI backend :8000
+                                      |
+                    +-----------------+------------------+
+                    |                                    |
+                    v                                    v
+             LLMService / llama.cpp              ModelRouter
+             local GGUF model                   free providers (opt-in)
+                    |
+                    v
+          SQLite WAL RAG store + sentence-transformers
 ```
 
-## Component Details
+The host publishes frontend and backend ports on `127.0.0.1` by default.
+Nginx proxies `/api/` to the backend over the Compose network. A production
+edge should publish only the frontend and keep the backend host port private.
 
-### 1. Frontend (React)
+## Repository structure
 
-**Location**: `/frontend/src`
-
-**Key Files**:
-- `App.js` - Main application component
-- `index.js` - Entry point
-- `App.css` - Styling
-
-**Responsibilities**:
-- User interface for chat interactions
-- Model status monitoring
-- Real-time message streaming
-- Error handling and user feedback
-
-**State Management**:
-- React Hooks (useState, useEffect, useRef)
-- Local state for messages, loading status, model status
-
-### 2. Backend (FastAPI)
-
-**Location**: `/backend`
-
-#### Directory Structure
-```
+```text
 backend/
-├── main.py              # Application entry point
-├── requirements.txt     # Python dependencies
-├── app/
-│   ├── __init__.py
-│   ├── routers/         # API route handlers
-│   │   ├── __init__.py
-│   │   └── chat.py      # Chat endpoints
-│   ├── schemas/         # Pydantic models
-│   │   ├── __init__.py
-│   │   ├── chat.py      # Chat schemas
-│   │   └── config.py    # Configuration schema
-│   ├── services/        # Business logic
-│   │   ├── __init__.py
-│   │   └── llm_service.py  # LLM management
-│   └── utils/           # Utilities
-│       ├── __init__.py
-│       └── logger.py    # Logging configuration
+  app/
+    main.py                    app factory, middleware, lifespan
+    routers/chat.py            health, model, catalog, chat, SSE routes
+    routers/documents.py      upload and semantic search routes
+    schemas/                   Pydantic request/config/response models
+    services/llm_service.py   local GGUF lifecycle and inference
+    services/model_router.py  free-provider selection and fallback
+    services/remote_provider.py OpenAI-compatible provider adapters
+    services/rag_service.py  SQLite persistence and cosine retrieval
+    services/access_control.py bearer access and process-local limits
+  tests/
+frontend/
+  src/                         React UI, API client, theme helpers
+docker/
+  Dockerfile.backend           non-root Python image
+  Dockerfile.frontend          Vite build and Nginx runtime
+  nginx.conf                   same-origin API proxy and browser headers
 ```
 
-#### API Endpoints
+## Request flows
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/` | GET | Root endpoint with app info |
-| `/api/v1/health` | GET | Health check |
-| `/api/v1/model/info` | GET | Get model information |
-| `/api/v1/model/load` | POST | Load model into memory |
-| `/api/v1/model/unload` | POST | Unload model from memory |
-| `/api/v1/chat/completions` | POST | Generate chat response |
-| `/api/v1/chat/completions/stream` | POST | Stream chat response |
+### Health and model lifecycle
 
-### 3. LLM Service
+`GET /api/v1/health` is intentionally lightweight and public for liveness. It
+reports model state and non-secret routing state without triggering remote
+catalog discovery. Model info/load/unload are protected when an application
+token is configured and use worker threads for blocking model operations.
 
-**Singleton Pattern**: The LLMService uses singleton pattern to ensure only one model instance exists.
+### Chat
 
-**Key Operations**:
-1. **Model Download**: Downloads GGUF format models from HuggingFace
-2. **Model Loading**: Loads model into RAM with optimized settings
-3. **Message Formatting**: Formats messages in Qwen's chat template
-4. **Inference**: Generates responses using llama-cpp-python
-5. **Streaming**: Yields tokens in real-time
-6. **Model Unloading**: Frees memory by unloading model
+1. FastAPI validates message count, content size, generation parameters, and
+   optional provider/model selection.
+2. Optional RAG retrieval runs in a worker thread and injects bounded context
+   into the latest user message.
+3. `ModelRouter` selects local inference or eligible free remote providers in
+   configured order.
+4. Remote calls use timeouts, non-blocking concurrency limits, normalized
+   catalogs, and safe fallback errors.
+5. The response includes non-secret `qwendbc` provider/model metadata. SSE
+   streams preserve the `[DONE]` marker and only fall back before content is
+   emitted.
 
-### 4. Data Flow
+### Document retrieval
 
-#### Chat Request Flow
-```
-1. User sends message via React frontend
-2. Frontend makes POST request to /api/v1/chat/completions
-3. FastAPI validates request using Pydantic schemas
-4. Router calls llm_service.generate()
-5. LLM Service formats messages for Qwen model
-6. llama-cpp-python performs inference
-7. Response formatted as OpenAI-compatible JSON
-8. Response sent back to frontend
-9. Frontend displays assistant message
-```
+Uploads accept UTF-8 text up to `MAX_UPLOAD_BYTES`. Text is normalized and
+chunked, embeddings are generated lazily with the configured
+`sentence-transformers` model, and chunks are stored in a private SQLite
+database at `CHROMA_DB_PATH`. Search performs bounded in-process cosine
+similarity over persisted embeddings; SQLite is not exposed as a network
+service. The setting and volume retain their historical Chroma names for
+configuration/data-path compatibility.
 
-#### Streaming Flow
-```
-1. User sends message (stream=true)
-2. Backend returns StreamingResponse
-3. Server-Sent Events (SSE) stream established
-4. Tokens yielded one by one from model
-5. Frontend updates UI in real-time
-6. Stream ends with [DONE] marker
-```
+## Security boundaries
 
-## Design Decisions
+The application factory configures explicit CORS methods/headers,
+`TrustedHostMiddleware`, request bounds, defensive response headers, and
+production-only configuration checks. Production requires a bearer token of
+at least 32 characters, explicit hosts/origins, and `DEBUG=false`; API docs
+routes are disabled.
 
-### 1. Local-First Architecture
-- **Decision**: All processing happens locally
-- **Rationale**: Privacy, no API costs, offline capability
-- **Trade-off**: Requires more local resources
+Remote provider keys are backend-only and production provider endpoints must
+use HTTPS. Free-provider catalogs reject paid automatic routes and non-text
+modalities. A provider may still receive the
+prompt when remote routing is enabled, so provider terms and data handling
+must be reviewed before activation.
 
-### 2. GGUF Model Format
-- **Decision**: Use GGUF quantized models
-- **Rationale**: Efficient CPU inference, smaller size
-- **Trade-off**: Slight quality reduction vs full precision
+The backend image runs as a non-root user. Compose uses a read-only root
+filesystem, dropped backend capabilities, no-new-privileges, process limits,
+and isolated temporary filesystems. Model/cache and RAG volumes are persistent
+and sensitive.
 
-### 3. Singleton LLM Service
-- **Decision**: Single model instance per application
-- **Rationale**: Memory efficiency, avoids duplicate loading
-- **Trade-off**: Shared state across requests
+The application token is not an identity provider, RBAC system, tenant
+boundary, immutable audit log, or distributed rate limiter. Production adds
+those controls at the platform/edge layer when required.
 
-### 4. Async/Await Pattern
-- **Decision**: Use async for I/O operations
-- **Rationale**: Non-blocking, better concurrency
-- **Trade-off**: Complexity in error handling
+## Lifecycle and concurrency
 
-### 5. Docker Compose
-- **Decision**: Containerized deployment
-- **Rationale**: Consistency, easy setup, isolation
-- **Trade-off**: Slight overhead vs native
+`LLMService` is a process singleton so one process does not load duplicate GGUF
+models. `ModelRouter` instances are cached per LLM service, while provider
+catalogs use a short in-process TTL. Blocking inference, embedding, and remote
+HTTP work run outside the async event loop. Horizontal scaling requires shared
+edge quotas, coordinated model/data ownership, and an explicit operational
+strategy for SQLite volume access.
 
-## Security Architecture
+## Observability and recovery
 
-### Defense in Depth
-1. **Network Layer**: CORS policies, port isolation
-2. **Application Layer**: Input validation, rate limiting
-3. **Data Layer**: Secure storage, access controls
+Application logs record lifecycle and failure events but must be collected with
+authorization headers, prompts, provider responses, and filesystem secrets
+redacted at the edge/platform. Add metrics, tracing, alerts, SLOs, and an
+immutable audit trail in production.
 
-### Key Security Features
-- Environment-based configuration
-- Secret key management
-- Input sanitization via Pydantic
-- CORS origin restrictions
-- Health check endpoints for monitoring
+Model artifacts can be re-downloaded after provenance review. SQLite RAG data
+requires encrypted, access-controlled backups and restore tests. Record commit
+SHA, image digests, configuration revision, CI result, staging evidence, and
+rollback verification for each release.
 
-## Scalability Considerations
-
-### Current Limitations
-- Single model instance (memory bound)
-- No horizontal scaling
-- No request queuing
-- Limited concurrent users
-
-### Future Improvements
-- Model sharding for larger models
-- Request queue with Redis
-- Horizontal scaling with load balancer
-- Caching layer for frequent queries
-- Multi-model support
-
-## Monitoring & Observability
-
-### Logging
-- Structured logging with levels
-- Request/response logging
-- Error tracking
-- Performance metrics
-
-### Health Checks
-- Model loaded status
-- API responsiveness
-- Resource utilization
-
-## Disaster Recovery
-
-### Backup Strategy
-- Model files: Re-downloadable from HuggingFace
-- ChromaDB: Volume persistence
-- Configuration: Version controlled
-
-### Recovery Procedures
-1. Container restart for transient issues
-2. Model reload for inference failures
-3. Volume restore for data corruption
-
----
-
-*Last updated: January 2025*
-*Version: 1.0.0*
+*Last updated: September 2026*

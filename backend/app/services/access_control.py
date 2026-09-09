@@ -10,7 +10,7 @@ import time
 
 from fastapi import HTTPException, Request, status
 
-from app.schemas.config import settings
+from app.schemas.config import Settings, settings
 
 _WINDOW_SECONDS = 60.0
 _MAX_CLIENTS = 4_096
@@ -42,9 +42,8 @@ def _client_key(request: Request, token: str) -> str:
     return f"{token_hash}:{host}"
 
 
-def _check_fixed_window(key: str) -> None:
+def _check_fixed_window(key: str, limit: int) -> None:
     now = time.monotonic()
-    limit = settings.REMOTE_RATE_LIMIT_PER_MINUTE
     with _state_lock:
         expired = [
             client_key
@@ -66,9 +65,14 @@ def _check_fixed_window(key: str) -> None:
             _request_windows.popitem(last=False)
 
 
+def _request_settings(request: Request) -> Settings:
+    return getattr(request.app.state, "settings", settings)
+
+
 def require_access(request: Request) -> None:
     """Enforce bearer access and a per-client fixed window when access is enabled."""
-    expected = settings.QWENDBC_ACCESS_TOKEN
+    config = _request_settings(request)
+    expected = config.QWENDBC_ACCESS_TOKEN
     if not expected:
         return
 
@@ -76,12 +80,12 @@ def require_access(request: Request) -> None:
     scheme, _, presented = authorization.partition(" ")
     if scheme.lower() != "bearer" or not presented or not hmac.compare_digest(presented, expected):
         raise _unauthorized()
-    _check_fixed_window(_client_key(request, expected))
+    _check_fixed_window(_client_key(request, expected), config.REMOTE_RATE_LIMIT_PER_MINUTE)
 
 
-def _semaphore() -> threading.BoundedSemaphore:
+def _semaphore(config: Settings = settings) -> threading.BoundedSemaphore:
     global _remote_limit, _remote_semaphore
-    configured_limit = settings.REMOTE_MAX_CONCURRENT_REQUESTS
+    configured_limit = config.REMOTE_MAX_CONCURRENT_REQUESTS
     with _state_lock:
         if configured_limit != _remote_limit:
             _remote_limit = configured_limit
@@ -90,9 +94,9 @@ def _semaphore() -> threading.BoundedSemaphore:
 
 
 @contextmanager
-def guarded_remote_call() -> Iterator[None]:
+def guarded_remote_call(config: Settings = settings) -> Iterator[None]:
     """Reserve bounded remote capacity without ever blocking local inference."""
-    semaphore = _semaphore()
+    semaphore = _semaphore(config)
     if not semaphore.acquire(blocking=False):
         raise _too_many_requests(1)
     try:

@@ -15,6 +15,15 @@ services:
     volumes:
       - model_data:/app/models
       - chroma_data:/app/chroma_db
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 512
+    stop_grace_period: 30s
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev
     ports:
       - "${BIND_HOST:-127.0.0.1}:${BACKEND_HOST_PORT:-8000}:8000"
     restart: unless-stopped
@@ -26,6 +35,23 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - NET_BIND_SERVICE
+      - SETGID
+      - SETUID
+    pids_limit: 256
+    stop_grace_period: 15s
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev
+      - /var/cache/nginx:rw,noexec,nosuid,nodev
+      - /var/log/nginx:rw,noexec,nosuid,nodev
+      - /var/run:rw,noexec,nosuid,nodev
     ports:
       - "${BIND_HOST:-127.0.0.1}:${FRONTEND_HOST_PORT:-3000}:80"
     restart: unless-stopped

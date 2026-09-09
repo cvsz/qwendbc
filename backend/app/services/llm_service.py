@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 import threading
 import time
 import uuid
@@ -49,18 +51,41 @@ class LLMService:
         model_dir.mkdir(parents=True, exist_ok=True)
         model_file_path = model_dir / settings.MODEL_FILE
 
-        if model_file_path.exists():
+        if model_file_path.is_file():
+            self._verify_model_checksum(model_file_path)
             logger.info("Model already exists at %s", model_file_path)
             return str(model_file_path)
 
         logger.info("Downloading model %s", settings.MODEL_NAME)
-        model_path = hf_hub_download(
-            repo_id=settings.MODEL_NAME,
-            filename=settings.MODEL_FILE,
-            local_dir=str(model_dir),
-        )
+        if settings.MODEL_REVISION:
+            model_path = hf_hub_download(
+                repo_id=settings.MODEL_NAME,
+                filename=settings.MODEL_FILE,
+                revision=settings.MODEL_REVISION,
+                local_dir=str(model_dir),
+            )
+        else:
+            model_path = hf_hub_download(
+                repo_id=settings.MODEL_NAME,
+                filename=settings.MODEL_FILE,
+                local_dir=str(model_dir),
+            )
+        self._verify_model_checksum(Path(model_path))
         logger.info("Model downloaded to %s", model_path)
         return model_path
+
+    @staticmethod
+    def _verify_model_checksum(model_path: Path) -> None:
+        expected = settings.MODEL_SHA256.strip().lower()
+        if not expected:
+            return
+
+        digest = hashlib.sha256()
+        with model_path.open("rb") as model_file:
+            while chunk := model_file.read(1024 * 1024):
+                digest.update(chunk)
+        if not hmac.compare_digest(digest.hexdigest(), expected):
+            raise ValueError("Model checksum does not match MODEL_SHA256")
 
     def load_model(self, model_path: str | None = None) -> bool:
         # Lifecycle operations are serialized so concurrent load/unload calls have a
@@ -72,6 +97,8 @@ class LLMService:
 
             try:
                 resolved_path = model_path or self.download_model()
+                if model_path:
+                    self._verify_model_checksum(Path(resolved_path))
                 logger.info("Loading model from %s", resolved_path)
                 model = Llama(
                     model_path=resolved_path,

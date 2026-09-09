@@ -1,3 +1,4 @@
+import hashlib
 import threading
 from collections.abc import Generator
 from typing import Any
@@ -163,3 +164,40 @@ def test_load_started_after_unload_transition_wins_lifecycle_order(
     assert service.is_loaded is True
     assert service.model is not None
     assert service.model_path == "/tmp/reloaded.gguf"
+
+
+def test_load_does_not_enable_disk_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    service = make_service(threading.RLock())
+    service.model = None  # type: ignore[assignment]
+    service.model_path = None
+    service.is_loaded = False
+    captured: dict[str, Any] = {}
+
+    monkeypatch.setattr(service, "download_model", lambda: "/tmp/test.gguf")
+
+    def fake_llama(**kwargs: Any) -> FakeModel:
+        captured.update(kwargs)
+        return FakeModel()
+
+    monkeypatch.setattr("app.services.llm_service.Llama", fake_llama)
+
+    assert service.load_model()
+    assert "cache" not in captured
+
+
+def test_download_model_verifies_the_configured_checksum(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Any
+) -> None:
+    service = make_service(threading.RLock())
+    model_path = tmp_path / "test.gguf"
+    model_path.write_bytes(b"model-bytes")
+    expected = hashlib.sha256(b"model-bytes").hexdigest()
+    monkeypatch.setattr("app.services.llm_service.settings.MODEL_PATH", str(tmp_path))
+    monkeypatch.setattr("app.services.llm_service.settings.MODEL_FILE", "test.gguf")
+    monkeypatch.setattr("app.services.llm_service.settings.MODEL_SHA256", expected)
+
+    assert service.download_model() == str(model_path)
+
+    model_path.write_bytes(b"tampered")
+    with pytest.raises(ValueError, match="checksum"):
+        service.download_model()

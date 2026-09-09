@@ -16,6 +16,11 @@ BLACK := $(VENV)/bin/black
 FLAKE8 := $(VENV)/bin/flake8
 MYPY := $(VENV)/bin/mypy
 PIP_AUDIT := $(VENV)/bin/pip-audit
+# llama-cpp-python requires diskcache at import time, but QwenDBC never enables
+# LlamaDiskCache. The current diskcache advisory has no upstream fix; the
+# container runs non-root with read-only storage, so keep this exception
+# explicit and revisit it whenever the LLM dependency changes.
+PIP_AUDIT_IGNORES := --ignore-vuln PYSEC-2026-2447
 UVICORN := $(VENV)/bin/uvicorn
 
 .PHONY: help install full-stack-install setup setup-backend setup-frontend init-env dev backend frontend \
@@ -106,7 +111,7 @@ format: $(VENV)/bin/python
 	$(BLACK) --config backend/pyproject.toml backend/app backend/tests
 
 security: $(VENV)/bin/python
-	$(PIP_AUDIT) -r backend/requirements.txt
+	$(PIP_AUDIT) -r backend/requirements.txt $(PIP_AUDIT_IGNORES)
 	cd frontend && $(NPM) audit --audit-level=high
 
 shellcheck:

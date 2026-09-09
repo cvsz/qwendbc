@@ -83,7 +83,7 @@ The repository currently gates frontend changes with lint and production build c
 
 Document ingestion and semantic search live in `backend/app/services/rag_service.py` and `backend/app/routers/documents.py`.
 
-Tests should normally override the RAG dependency with a fake service so API tests remain deterministic and do not download embedding models. Changes to ChromaDB or sentence-transformers integration should also be verified manually or in an integration environment with the real dependencies available.
+Tests should normally override the RAG dependency with a fake service so API tests remain deterministic and do not download embedding models. Changes to the SQLite or sentence-transformers integration should also be verified manually or in an integration environment with the real dependencies available.
 
 ## Configuration and secrets
 

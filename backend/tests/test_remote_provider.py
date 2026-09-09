@@ -60,6 +60,28 @@ def test_kilo_catalog_keeps_only_free_text_models(monkeypatch: pytest.MonkeyPatc
     ]
 
 
+def test_openrouter_catalog_rejects_the_paid_automatic_route(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    provider = make_provider("openrouter", "https://router.test", default_model="openrouter/free")
+    monkeypatch.setattr(
+        provider,
+        "_get_json",
+        lambda _: {
+            "data": [
+                {
+                    "id": "openrouter/auto",
+                    "name": "Automatic",
+                    "pricing": {"prompt": "0", "completion": "0"},
+                    "architecture": {"output_modalities": ["text"]},
+                }
+            ]
+        },
+    )
+
+    assert provider.list_models(refresh=True) == []
+
+
 def test_catalog_accepts_text_capability_with_additional_output_modalities(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
