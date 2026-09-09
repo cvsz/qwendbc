@@ -72,6 +72,26 @@ def test_catalog_accepts_raw_arrays_and_returns_empty_for_malformed_data(
     assert provider.list_models(refresh=True) == []
 
 
+def test_catalog_malformed_json_returns_an_empty_list(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = make_provider("kilo", "https://kilo.test", default_model="kilo-auto/free")
+    request = httpx.Request("GET", "https://kilo.test/models")
+    response = httpx.Response(200, request=request, content=b"{")
+
+    class FakeClient:
+        def __enter__(self) -> "FakeClient":
+            return self
+
+        def __exit__(self, *_: object) -> bool:
+            return False
+
+        def get(self, *_: object, **__: object) -> httpx.Response:
+            return response
+
+    monkeypatch.setattr("app.services.remote_provider.httpx.Client", lambda **_: FakeClient())
+
+    assert provider.list_models(refresh=True) == []
+
+
 def test_route_aliases_belong_only_to_their_own_provider() -> None:
     kilo = make_provider("kilo", "https://kilo.test", default_model="kilo-auto/free")
     router = make_provider("openrouter", "https://router.test", default_model="openrouter/free")

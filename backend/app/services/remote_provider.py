@@ -65,7 +65,11 @@ class OpenAICompatibleProvider:
         if self._catalog is not None and not refresh:
             return list(self._catalog)
 
-        payload = self._get_json("/models")
+        try:
+            payload = self._get_json("/models")
+        except json.JSONDecodeError:
+            self._catalog = []
+            return []
         entries = payload.get("data") if isinstance(payload, dict) else payload
         if not isinstance(entries, list):
             self._catalog = []
