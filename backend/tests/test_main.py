@@ -143,6 +143,27 @@ def test_default_settings_are_valid() -> None:
     assert config.allowed_origins_list
 
 
+def test_default_free_order_is_provider_safe() -> None:
+    config = Settings(_env_file=None)
+    assert config.MODEL_MODE == "auto_free"
+    assert config.free_provider_order == ("kilo", "opencode", "openrouter", "local")
+    assert config.REMOTE_MODELS_ENABLED is False
+
+
+def test_remote_mode_requires_access_token() -> None:
+    with pytest.raises(ValueError, match="QWENDBC_ACCESS_TOKEN"):
+        Settings(_env_file=None, REMOTE_MODELS_ENABLED=True)
+
+
+@pytest.mark.parametrize(
+    "provider_order",
+    ["kilo,kilo,local", "kilo,unknown,local"],
+)
+def test_settings_reject_invalid_free_provider_order(provider_order: str) -> None:
+    with pytest.raises(ValueError, match="FREE_PROVIDER_ORDER"):
+        Settings(_env_file=None, FREE_PROVIDER_ORDER=provider_order)
+
+
 def test_settings_reject_max_tokens_above_context() -> None:
     with pytest.raises(ValueError, match="MAX_TOKENS"):
         Settings(_env_file=None, MAX_CONTEXT_LENGTH=1024, MAX_TOKENS=2048)
