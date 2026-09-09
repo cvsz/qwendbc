@@ -5,8 +5,10 @@ import {
   ApiError,
   fetchHealth,
   fetchModels,
+  getAccessToken,
   parseCompletion,
   parseSseEvents,
+  saveAccessToken,
 } from "./api.js";
 
 function response(body, status = 200) {
@@ -61,6 +63,20 @@ test("fetchHealth attaches a session access token without exposing it in errors"
   }
 });
 
+test("operator access tokens stay in session storage and can be cleared", () => {
+  const values = new Map();
+  const storage = {
+    getItem: (key) => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, value),
+    removeItem: (key) => values.delete(key),
+  };
+
+  saveAccessToken("  operator-secret  ", storage);
+  assert.equal(getAccessToken(storage), "operator-secret");
+  saveAccessToken("", storage);
+  assert.equal(getAccessToken(storage), "");
+});
+
 test("API errors expose status and a user-safe message only", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async () =>
@@ -96,4 +112,3 @@ test("parseSseEvents ignores comments and stops at DONE", () => {
     [{ choices: [] }],
   );
 });
-

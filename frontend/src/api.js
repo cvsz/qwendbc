@@ -26,6 +26,20 @@ function readAccessToken(storage = getDefaultStorage()) {
   }
 }
 
+export function getAccessToken(storage = getDefaultStorage()) {
+  return readAccessToken(storage);
+}
+
+export function saveAccessToken(token, storage = getDefaultStorage()) {
+  const safeToken = typeof token === "string" ? token.trim() : "";
+  try {
+    if (safeToken) storage?.setItem(ACCESS_TOKEN_STORAGE_KEY, safeToken);
+    else storage?.removeItem(ACCESS_TOKEN_STORAGE_KEY);
+  } catch {
+    // Session storage is optional; callers can still use the local mode.
+  }
+}
+
 function requestUrl(path) {
   if (/^https?:\/\//i.test(path)) return path;
   return `${API_URL}/${String(path).replace(/^\/+/, "")}`;
