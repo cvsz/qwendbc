@@ -18,6 +18,7 @@ import {
   saveThemePreference,
 } from "./theme.js";
 import "./App.css";
+import ControlPanel from "./ControlPanel.jsx";
 
 const MAX_API_MESSAGES = 128;
 const PROVIDER_LABELS = {
@@ -85,6 +86,7 @@ function App() {
   const [accessToken, setAccessToken] = useState(() => getAccessToken());
   const [routing, setRouting] = useState(null);
   const [notice, setNotice] = useState(null);
+  const [controlPanelOpen, setControlPanelOpen] = useState(false);
   const messagesEndRef = useRef(null);
 
   const providerStatuses = useMemo(() => {
@@ -321,6 +323,15 @@ function App() {
           <div className="header-status">
             <span className={`status-dot ${statusClass}`} aria-hidden="true" />
             <span>{statusText(modelStatus, remoteReady)}</span>
+            <button
+              className="quiet-button control-btn"
+              type="button"
+              aria-label="Open control panel"
+              title="Control Panel"
+              onClick={() => setControlPanelOpen(true)}
+            >
+              ⚙️
+            </button>
           </div>
         </div>
       </header>
@@ -609,6 +620,13 @@ function App() {
           <span>Built for focused work.</span>
         </div>
       </footer>
+
+      <ControlPanel
+        open={controlPanelOpen}
+        onClose={() => setControlPanelOpen(false)}
+        modelStatus={modelStatus}
+        onModelStatusChange={setModelStatus}
+      />
     </div>
   );
 }

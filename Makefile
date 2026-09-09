@@ -23,7 +23,7 @@ PIP_AUDIT := $(VENV)/bin/pip-audit
 PIP_AUDIT_IGNORES := --ignore-vuln PYSEC-2026-2447
 UVICORN := $(VENV)/bin/uvicorn
 
-.PHONY: help install full-stack-install setup setup-backend setup-frontend init-env dev backend frontend \
+.PHONY: help install full-stack full-stack-install full-feature fullfeature setup setup-backend setup-frontend init-env dev backend frontend \
         test test-backend test-frontend lint lint-backend lint-frontend format \
         security shellcheck docker-build docker-up docker-down docker-logs \
         docker-clean health model-info clean all
@@ -31,17 +31,26 @@ UVICORN := $(VENV)/bin/uvicorn
 help:
 	@printf '%s\n' \
 	  'QwenDBC targets:' \
-	  '  make install        Build/start Docker full stack (override host ports if needed)' \
-	  '  make setup          Install backend + frontend dependencies and create .env' \
-	  '  make dev            Run backend and frontend development servers' \
-	  '  make test           Run backend tests and frontend lint/build checks' \
-	  '  make lint           Run Python and frontend linters without modifying files' \
-	  '  make format         Format Python source with Black' \
-	  '  make security       Audit Python and npm dependencies' \
-	  '  make shellcheck     ShellCheck tracked .sh files when present' \
-	  '  make docker-build   Validate Compose and build both images' \
-	  '  make docker-up      Start the application with Docker Compose' \
-	  '  make clean          Remove local build/test artifacts (keeps lockfiles)'
+	  '  make install           Build/start Docker full stack (alias: full-stack)' \
+	  '  make full-stack        Build/start Docker full stack (override host ports if needed)' \
+	  '  make setup             Install backend + frontend dependencies and create .env' \
+	  '  make dev               Run backend and frontend development servers' \
+	  '  make test              Run backend tests and frontend lint/build checks' \
+	  '  make lint              Run Python and frontend linters without modifying files' \
+	  '  make format            Format Python source with Black' \
+	  '  make security          Audit Python and npm dependencies' \
+	  '  make shellcheck        ShellCheck tracked .sh files when present' \
+	  '  make docker-build      Validate Compose and build both images' \
+	  '  make docker-up         Start the application with Docker Compose' \
+	  '  make docker-down       Stop the Compose application' \
+	  '  make docker-clean      Stop Compose and remove named volumes' \
+	  '  make health            Query the backend health endpoint' \
+	  '  make model-info        Query the backend model/info endpoint' \
+	  '  make clean             Remove local build/test artifacts (keeps lockfiles)' \
+	  '  make all               setup + lint + test + security + docker-build' \
+	  '  make fullfeature       Full quality + feature gate: setup, lint, test, security,' \
+	  '                         shellcheck, docker-build, docker-up, health, model-info, clean' \
+	  '  make full-feature      Alias of fullfeature'
 
 install: full-stack-install
 
@@ -54,6 +63,9 @@ full-stack-install: init-env
 	  '  Backend:  http://localhost:$(BACKEND_HOST_PORT)' \
 	  '  API docs: http://localhost:$(BACKEND_HOST_PORT)/docs' \
 	  'Model files are downloaded only when the model-load endpoint is called.'
+
+# full-stack: convenience alias for full-stack-install.
+full-stack: full-stack-install
 
 $(VENV)/bin/python:
 	$(PYTHON_SYSTEM) -m venv $(VENV)
@@ -152,3 +164,18 @@ clean:
 	find backend -type d -name __pycache__ -prune -exec rm -rf {} +
 
 all: setup lint test security docker-build
+
+# full-feature: alias of fullfeature (full quality + feature gate).
+full-feature: fullfeature
+
+# fullfeature: end-to-end quality + feature gate.
+# Runs the full pipeline (setup, lint, test, security, shellcheck, docker-build,
+# docker-up) and then verifies the running stack with health and model-info
+# probes before cleaning up local artifacts. Fails on the first error.
+fullfeature: setup lint test security shellcheck docker-build docker-up
+	@echo '--- fullfeature: verifying running stack ---'
+	@-$(MAKE) health
+	@-$(MAKE) model-info
+	@$(COMPOSE_ENV) $(MAKE) docker-down
+	@$(MAKE) clean
+	@echo 'fullfeature: all gates passed'

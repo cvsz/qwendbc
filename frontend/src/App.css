@@ -52,7 +52,6 @@ html[data-theme="night"] {
 }
 
 * {
-  box-sizing: border-box;
 }
 
 html {
@@ -410,6 +409,12 @@ h1 {
 .secondary-button:hover:not(:disabled) {
   border-color: var(--accent);
   color: var(--accent-deep);
+}
+
+.quiet-button.control-btn {
+  font-size: 1rem;
+  line-height: 1;
+  padding: 0.45rem 0.6rem;
 }
 
 .quiet-button:disabled,
