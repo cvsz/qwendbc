@@ -81,6 +81,10 @@ class Settings(BaseSettings):
     COWORK_WORKSPACE_ROOT: str = "./workspaces"
     COWORK_MAX_FILE_BYTES: int = Field(default=1_000_000, ge=1_024, le=10_000_000)
 
+    # Agentic task/control-plane persistence. Kept separate from Cowork storage
+    # so task schema evolution cannot silently reinterpret conversation data.
+    AGENTIC_DB_PATH: str = "./data/agentic.sqlite3"
+
     # CORS
     ALLOWED_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
     ALLOWED_HOSTS: str = "localhost,127.0.0.1,testserver"
