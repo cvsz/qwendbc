@@ -1,11 +1,11 @@
-# QwenDBC
+# AI-DBC
 
-[![CI](https://github.com/cvsz/qwendbc/actions/workflows/ci-cd.yml/badge.svg?branch=main)](https://github.com/cvsz/qwendbc/actions/workflows/ci-cd.yml)
-[![CodeQL Analysis](https://github.com/cvsz/qwendbc/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/cvsz/qwendbc/actions/workflows/codeql.yml)
-[![Dependency Review](https://github.com/cvsz/qwendbc/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/cvsz/qwendbc/actions/workflows/dependency-review.yml)
-[![Release](https://github.com/cvsz/qwendbc/actions/workflows/release.yml/badge.svg)](https://github.com/cvsz/qwendbc/actions/workflows/release.yml)
+[![CI](https://github.com/cvsz/ai-dbc/actions/workflows/ci-cd.yml/badge.svg?branch=main)](https://github.com/cvsz/ai-dbc/actions/workflows/ci-cd.yml)
+[![CodeQL Analysis](https://github.com/cvsz/ai-dbc/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/cvsz/ai-dbc/actions/workflows/codeql.yml)
+[![Dependency Review](https://github.com/cvsz/ai-dbc/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/cvsz/ai-dbc/actions/workflows/dependency-review.yml)
+[![Release](https://github.com/cvsz/ai-dbc/actions/workflows/release.yml/badge.svg)](https://github.com/cvsz/ai-dbc/actions/workflows/release.yml)
 
-QwenDBC is a local-first FastAPI + React application for running a GGUF Qwen model with `llama.cpp`, plus local document ingestion and semantic search with SQLite and `sentence-transformers`. When explicitly enabled, it can route free text chat through Kilo, OpenCode, and OpenRouter before falling back to a loaded local model.
+AI-DBC (historically QwenDBC) is a local-first FastAPI + React application for running a GGUF Qwen model with `llama.cpp`, plus local document ingestion and semantic search with SQLite and `sentence-transformers`. When explicitly enabled, it can route free text chat through Kilo, OpenCode, and OpenRouter before falling back to a loaded local model.
 
 ## Current stack
 
@@ -17,6 +17,16 @@ QwenDBC is a local-first FastAPI + React application for running a GGUF Qwen mod
 - Security: CodeQL, dependency review, pip-audit, npm audit, Dependabot
 
 > **Security boundary:** remote providers are disabled by default. Protected routes require `Authorization: Bearer ...` whenever `QWENDBC_ACCESS_TOKEN` is configured, and production configuration requires a strong token even for local-only inference. Health remains readable. Docker and local development bind to loopback by default, and public deployment still needs TLS plus an authenticated edge/app boundary.
+
+## Agentic upgrade program
+
+Repository-level AI engineering guidance now lives in [AGENTS.md](./AGENTS.md). The evidence-driven agentic upgrade prompt pack is in [docs/prompts/](./docs/prompts/):
+
+- [Master execution](./docs/prompts/MASTER_EXECUTION.md) — implementation architecture, phases, security boundaries, tests, and definition of done.
+- [Adversarial security review](./docs/prompts/SECURITY_REVIEW.md) — independent attack-oriented review and verification.
+- [Production release gate](./docs/prompts/RELEASE_GATE.md) — merge/release evidence matrix and operational proof requirements.
+
+The prompt pack intentionally evolves the existing Cowork/RAG/model-router baseline rather than replacing it. Tool-specific agent configuration proposed by other PRs must be reconciled with the canonical root instructions instead of duplicated blindly.
 
 ## Quick start with Docker
 
