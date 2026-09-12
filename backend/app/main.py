@@ -7,8 +7,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from app.agentic import TaskStore, build_default_agent_registry
 from app.conversations.service import ConversationService
-from app.routers import chat, cowork, documents
+from app.routers import agentic, chat, cowork, documents
 from app.schemas.config import Settings, settings
 from app.services.llm_service import llm_service
 from app.services.rag_service import rag_service
@@ -31,6 +32,7 @@ def build_lifespan(config: Settings):
                 await asyncio.to_thread(llm_service.unload_model)
             await asyncio.to_thread(rag_service.close)
             await asyncio.to_thread(_app.state.conversation_service.close)
+            await asyncio.to_thread(_app.state.task_store.close)
             logger.info("Shutting down")
 
     return configured_lifespan
@@ -48,6 +50,8 @@ def create_app(config: Settings = settings) -> FastAPI:
         lifespan=build_lifespan(config),
     )
     application.state.settings = config
+    application.state.agent_registry = build_default_agent_registry()
+    application.state.task_store = TaskStore(config.AGENTIC_DB_PATH)
     application.state.conversation_service = ConversationService(config.COWORK_DB_PATH)
     application.state.workspace_service = WorkspaceService(
         config.COWORK_WORKSPACE_ROOT,
@@ -97,6 +101,7 @@ def create_app(config: Settings = settings) -> FastAPI:
     application.include_router(chat.router, prefix="/api/v1", tags=["chat"])
     application.include_router(documents.router, prefix="/api/v1", tags=["documents"])
     application.include_router(cowork.router, prefix="/api/v1", tags=["cowork"])
+    application.include_router(agentic.router, prefix="/api/v1", tags=["agentic"])
 
     @application.get("/")
     async def root() -> dict[str, str]:
