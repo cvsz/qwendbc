@@ -17,6 +17,10 @@ services:
       - model_data:/app/models
       - chroma_data:/app/chroma_db
     read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     pids_limit: 512
     stop_grace_period: 30s
     tmpfs:
@@ -103,6 +107,10 @@ services:
       backend:
         condition: service_healthy
     read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     pids_limit: 256
     stop_grace_period: 15s
     tmpfs:
@@ -121,7 +129,7 @@ services:
       retries: 3
 
   nginx-proxy:
-    image: nginx:1.29-alpine
+    image: nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de
     depends_on:
       frontend:
         condition: service_healthy
