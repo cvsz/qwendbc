@@ -115,6 +115,9 @@ class TaskStore:
         agent_id: str,
         objective: str,
     ) -> TaskRecord:
+        normalized_objective = objective.strip()
+        if not normalized_objective:
+            raise ValueError("objective must contain non-whitespace content")
         now = self._now()
         task = TaskRecord(
             id=str(uuid.uuid4()),
@@ -122,7 +125,7 @@ class TaskStore:
             principal_id=principal_id,
             conversation_id=conversation_id,
             agent_id=agent_id,
-            objective=objective.strip(),
+            objective=normalized_objective,
             status=TaskStatus.CREATED,
             correlation_id=str(uuid.uuid4()),
             created_at=now,
