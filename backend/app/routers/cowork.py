@@ -46,7 +46,7 @@ def _workspace_error(exc: Exception) -> HTTPException:
     if isinstance(exc, (WorkspacePathError, UnicodeDecodeError, IsADirectoryError, NotADirectoryError)):
         return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     if isinstance(exc, FileNotFoundError):
-        return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace path not found")
+        return HTTPException(\n            status_code=status.HTTP_404_NOT_FOUND, detail="Workspace path not found"\n        )
     raise exc
 
 
