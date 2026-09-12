@@ -129,3 +129,18 @@ def test_unknown_agent_is_rejected(tmp_path: Path) -> None:
 
     assert response.status_code == 422
     store.close()
+
+
+def test_whitespace_only_objective_is_rejected(tmp_path: Path) -> None:
+    client, store = make_client(tmp_path)
+
+    response = client.post(
+        "/api/v1/tasks",
+        json={
+            "agent_id": "planner",
+            "objective": "   ",
+        },
+    )
+
+    assert response.status_code == 422
+    store.close()
