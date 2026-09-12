@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows [Kee
 
 ### Added
 
+- Canonical root `AGENTS.md` instructions for AI-assisted engineering and evidence-based completion rules.
+- Agentic upgrade prompt pack covering implementation, adversarial security review, and production release verification under `docs/prompts/`.
+
 - Working local document ingestion and semantic-search endpoints backed by ChromaDB and sentence-transformers.
 - Functional RAG API tests replacing skipped placeholder tests.
 - Regression tests for model-unload races during normal and streaming inference.
@@ -69,5 +72,5 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial FastAPI/llama.cpp chat application, React frontend, Docker configuration, and local model configuration.
 
-[Unreleased]: https://github.com/cvsz/qwendbc/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/cvsz/qwendbc/releases/tag/v1.0.0
+[Unreleased]: https://github.com/cvsz/ai-dbc/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/cvsz/ai-dbc/releases/tag/v1.0.0
