@@ -8,7 +8,11 @@ EXAMPLE_ENV_FILES = (
     ROOT / "configs" / ".env.example",
 )
 SENSITIVE_NAME = re.compile(r"(?:API_KEY|ACCESS_TOKEN|SECRET_KEY|PASSWORD|JUPYTER_TOKEN)$")
-EXTRA_SENSITIVE_NAMES = {"OPENWEBUI_GOOGLE_PSE_CX"}
+EXTRA_SENSITIVE_NAMES = {
+    "OPENWEBUI_GOOGLE_PSE_CX",
+    # This variable is JSON and may contain OAuth client_secret values.
+    "OPENWEBUI_OAUTH_PROVIDERS",
+}
 
 
 def test_example_environment_files_do_not_embed_credentials() -> None:
