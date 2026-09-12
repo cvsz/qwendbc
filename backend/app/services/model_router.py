@@ -262,7 +262,7 @@ class ModelRouter:
                 }
                 for source in rag_sources
             ]
-        result["qwendbc"] = metadata
+        result["ai-dbc"] = metadata
         return result
 
     def complete(
@@ -393,5 +393,5 @@ class ModelRouter:
     ) -> dict[str, Any]:
         result = dict(chunk)
         result["model"] = model
-        result["qwendbc"] = {"provider": provider, "model": model, "fallback": fallback}
+        result["ai-dbc"] = {"provider": provider, "model": model, "fallback": fallback}
         return result

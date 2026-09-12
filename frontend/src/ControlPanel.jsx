@@ -1,27 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-
-const API_URL = import.meta.env.VITE_API_URL || "/api/v1";
-
-async function parseError(response, fallback) {
-  try {
-    const data = await response.json();
-    return data.detail || data.error || fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-async function requestJson(path, options = {}) {
-  const response = await fetch(`${API_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
-  if (!response.ok) {
-    throw new Error(await parseError(response, `Request to ${path} failed`));
-  }
-  if (response.status === 204) return null;
-  return response.json();
-}
+import { fetchHealth, fetchModelInfo, loadModel, unloadModel } from "./api.js";
 
 function Section({ title, children }) {
   return (
@@ -29,21 +7,6 @@ function Section({ title, children }) {
       <h3>{title}</h3>
       {children}
     </section>
-  );
-}
-
-function Toggle({ label, checked, onChange, disabled }) {
-  return (
-    <label className="control-panel__toggle">
-      <span>{label}</span>
-      <input
-        type="checkbox"
-        checked={checked}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.checked)}
-      />
-      <span className="control-panel__switch" />
-    </label>
   );
 }
 
@@ -60,7 +23,6 @@ export default function ControlPanel({ open, onClose, modelStatus, onModelStatus
   const [modelInfo, setModelInfo] = useState(null);
   const [health, setHealth] = useState(null);
   const [loadingModel, setLoadingModel] = useState(false);
-  const [streaming, setStreaming] = useState(false);
   const [error, setError] = useState(null);
   const [statusMessage, setStatusMessage] = useState(null);
 
@@ -68,8 +30,8 @@ export default function ControlPanel({ open, onClose, modelStatus, onModelStatus
     () => async () => {
       try {
         const [info, healthData] = await Promise.all([
-          requestJson("/model/info"),
-          requestJson("/health"),
+          fetchModelInfo(),
+          fetchHealth(),
         ]);
         setModelInfo(info);
         setHealth(healthData);
@@ -94,7 +56,7 @@ export default function ControlPanel({ open, onClose, modelStatus, onModelStatus
     setError(null);
     setStatusMessage(null);
     try {
-      await requestJson("/model/load", { method: "POST" });
+      await loadModel();
       setStatusMessage("Model loaded");
       await refresh();
     } catch (err) {
@@ -109,33 +71,13 @@ export default function ControlPanel({ open, onClose, modelStatus, onModelStatus
     setError(null);
     setStatusMessage(null);
     try {
-      await requestJson("/model/unload", { method: "POST" });
+      await unloadModel();
       setStatusMessage("Model unloaded");
       await refresh();
     } catch (err) {
       setError(err.message || "Failed to unload model");
     } finally {
       setLoadingModel(false);
-    }
-  };
-
-  const toggleStreaming = async () => {
-    setStreaming(true);
-    setError(null);
-    setStatusMessage(null);
-    try {
-      // A lightweight probe request to toggle the streaming mode flag.
-      await requestJson("/model/streaming", {
-        method: "POST",
-        body: JSON.stringify({ enabled: !streaming }),
-      });
-      setStreaming((prev) => !prev);
-      setStatusMessage(streaming ? "Streaming disabled" : "Streaming enabled");
-    } catch (err) {
-      // Streaming toggle is a best-effort control; the endpoint may not exist.
-      setError(err.message || "Streaming toggle unavailable");
-    } finally {
-      setStreaming(false);
     }
   };
 
@@ -200,15 +142,6 @@ export default function ControlPanel({ open, onClose, modelStatus, onModelStatus
               {loadingModel ? "Working..." : "Unload Model"}
             </button>
           </div>
-        </Section>
-
-        <Section title="Generation">
-          <Toggle
-            label="Streaming responses"
-            checked={streaming}
-            disabled={loadingModel}
-            onChange={toggleStreaming}
-          />
         </Section>
 
         <Section title="Documents">

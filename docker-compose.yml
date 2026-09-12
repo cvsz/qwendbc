@@ -28,6 +28,123 @@ services:
     ports:
       - "${BACKEND_BIND_HOST:-127.0.0.1}:${BACKEND_HOST_PORT:-8000}:8000"
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--header", "Host: ${HEALTHCHECK_HOST:-localhost}", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+
+  open-webui:
+    image: ${OPENWEBUI_IMAGE:-ghcr.io/open-webui/open-webui:main}
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      # Core OpenWebUI Enterprise Features
+      ENABLE_OPENAI_API: "true"
+      ENABLE_OLLAMA_API: "false"
+      ENABLE_WEBSOCKET_SUPPORT: "true"
+      OPENAI_API_BASE_URLS: http://backend:8000/api/v1
+      OPENAI_API_KEYS: ${QWENDBC_ACCESS_TOKEN:-}
+      WEBUI_SECRET_KEY: ${OPENWEBUI_SECRET_KEY:-}
+      WEBUI_URL: ${OPENWEBUI_URL:-http://localhost:3001}
+      CORS_ALLOW_ORIGIN: ${OPENWEBUI_CORS_ALLOW_ORIGIN:-http://localhost:3001}
+
+      # Enterprise Authentication & SSO
+      ENABLE_LDAP: "${OPENWEBUI_ENABLE_LDAP:-false}"
+      LDAP_SERVER_URI: "${OPENWEBUI_LDAP_SERVER_URI:-}"
+      LDAP_BIND_DN: "${OPENWEBUI_LDAP_BIND_DN:-}"
+      LDAP_BIND_PASSWORD: "${OPENWEBUI_LDAP_BIND_PASSWORD:-}"
+      LDAP_USER_SEARCH_BASE: "${OPENWEBUI_LDAP_USER_SEARCH_BASE:-}"
+      LDAP_USER_SEARCH_FILTER: "${OPENWEBUI_LDAP_USER_SEARCH_FILTER:-(uid=%s)}"
+      LDAP_GROUP_SEARCH_BASE: "${OPENWEBUI_LDAP_GROUP_SEARCH_BASE:-}"
+      LDAP_GROUP_SEARCH_FILTER: "${OPENWEBUI_LDAP_GROUP_SEARCH_FILTER:-(member=%s)}"
+
+      # OAuth/OIDC Providers
+      OAUTH_PROVIDERS: "${OPENWEBUI_OAUTH_PROVIDERS:-}"
+      OAUTH_MERGE_ACCOUNTS_BY_EMAIL: "${OPENWEBUI_OAUTH_MERGE_ACCOUNTS_BY_EMAIL:-true}"
+
+      # RBAC & Admin Features
+      ENABLE_ADMIN_EXPORT: "true"
+      ENABLE_ADMIN_CHAT_ACCESS: "true"
+      DEFAULT_USER_ROLE: "${OPENWEBUI_DEFAULT_USER_ROLE:-user}"
+      DEFAULT_MODELS: "${OPENWEBUI_DEFAULT_MODELS:-}"
+
+      # Document Ingestion & RAG
+      ENABLE_RAG: "true"
+      RAG_EMBEDDING_ENGINE: "${OPENWEBUI_RAG_EMBEDDING_ENGINE:-ollama}"
+      RAG_EMBEDDING_MODEL: "${OPENWEBUI_RAG_EMBEDDING_MODEL:-nomic-embed-text}"
+      RAG_CHUNK_SIZE: "${OPENWEBUI_RAG_CHUNK_SIZE:-1000}"
+      RAG_CHUNK_OVERLAP: "${OPENWEBUI_RAG_CHUNK_OVERLAP:-200}"
+      RAG_TOP_K: "${OPENWEBUI_RAG_TOP_K:-5}"
+      RAG_TEMPLATE: "${OPENWEBUI_RAG_TEMPLATE:-}"
+
+      # Web Search & Tools
+      ENABLE_WEB_SEARCH: "${OPENWEBUI_ENABLE_WEB_SEARCH:-true}"
+      WEB_SEARCH_ENGINE: "${OPENWEBUI_WEB_SEARCH_ENGINE:-searxng}"
+      SEARXNG_BASE_URL: "${OPENWEBUI_SEARXNG_BASE_URL:-}"
+      GOOGLE_PSE_API_KEY: "${OPENWEBUI_GOOGLE_PSE_API_KEY:-}"
+      GOOGLE_PSE_CX: "${OPENWEBUI_GOOGLE_PSE_CX:-}"
+      BRAVE_SEARCH_API_KEY: "${OPENWEBUI_BRAVE_SEARCH_API_KEY:-}"
+
+      # Function/Tool Calling
+      ENABLE_FUNCTIONS: "true"
+      FUNCTIONS_MODULE: "${OPENWEBUI_FUNCTIONS_MODULE:-}"
+
+      # Pipeline/Model Routing
+      ENABLE_MODEL_FILTER: "true"
+      MODEL_ORDER_LIST: "${OPENWEBUI_MODEL_ORDER_LIST:-}"
+
+      # Custom Branding
+      WEBUI_NAME: "${OPENWEBUI_WEBUI_NAME:-AI-DBC}"
+      WEBUI_FAVICON_URL: "${OPENWEBUI_WEBUI_FAVICON_URL:-}"
+      DEFAULT_LOCALE: "${OPENWEBUI_DEFAULT_LOCALE:-en-US}"
+      DEFAULT_THEME: "${OPENWEBUI_DEFAULT_THEME:-system}"
+
+      # Audit & Compliance
+      ENABLE_AUDIT_LOG: "${OPENWEBUI_ENABLE_AUDIT_LOG:-true}"
+      AUDIT_LOG_LEVEL: "${OPENWEBUI_AUDIT_LOG_LEVEL:-info}"
+
+      # Advanced Features
+      ENABLE_EVALUATION_ARENA: "${OPENWEBUI_ENABLE_EVALUATION_ARENA:-false}"
+      ENABLE_COMMUNITY_SHARING: "${OPENWEBUI_ENABLE_COMMUNITY_SHARING:-false}"
+      ENABLE_MESSAGE_RATING: "true"
+      ENABLE_CODE_EXECUTION: "${OPENWEBUI_ENABLE_CODE_EXECUTION:-false}"
+      CODE_EXECUTION_ENGINE: "${OPENWEBUI_CODE_EXECUTION_ENGINE:-jupyter}"
+      JUPYTER_URL: "${OPENWEBUI_JUPYTER_URL:-}"
+      JUPYTER_TOKEN: "${OPENWEBUI_JUPYTER_TOKEN:-}"
+
+      # File Upload & Processing
+      FILE_UPLOAD_DIR: "/app/backend/data/uploads"
+      MAX_FILE_SIZE: "${OPENWEBUI_MAX_FILE_SIZE:-50MB}"
+      ENABLE_FILE_UPLOAD: "true"
+      ENABLE_IMAGE_GENERATION: "${OPENWEBUI_ENABLE_IMAGE_GENERATION:-false}"
+      IMAGE_GENERATION_ENGINE: "${OPENWEBUI_IMAGE_GENERATION_ENGINE:-auto}"
+      IMAGE_GENERATION_MODEL: "${OPENWEBUI_IMAGE_GENERATION_MODEL:-}"
+
+      # Performance & Caching
+      CACHE_DIR: "/app/backend/data/cache"
+      REDIS_URL: "${OPENWEBUI_REDIS_URL:-}"
+      CELERY_BROKER_URL: "${OPENWEBUI_CELERY_BROKER_URL:-}"
+      CELERY_RESULT_BACKEND: "${OPENWEBUI_CELERY_RESULT_BACKEND:-}"
+
+      # Security
+      ENABLE_RATE_LIMIT: "${OPENWEBUI_ENABLE_RATE_LIMIT:-true}"
+      RATE_LIMIT_REQUESTS: "${OPENWEBUI_RATE_LIMIT_REQUESTS:-100}"
+      RATE_LIMIT_WINDOW: "${OPENWEBUI_RATE_LIMIT_WINDOW:-60}"
+
+    volumes:
+      - open_webui_data:/app/backend/data
+    ports:
+      - "${OPENWEBUI_BIND_HOST:-127.0.0.1}:${OPENWEBUI_HOST_PORT:-3001}:8080"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
 
   frontend:
     build:
@@ -55,3 +172,4 @@ services:
 volumes:
   model_data:
   chroma_data:
+  open_webui_data:

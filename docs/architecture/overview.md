@@ -1,6 +1,6 @@
 # Architecture Overview
 
-QwenDBC is a local-first FastAPI and React application. Docker Compose runs a
+AI-DBC is a local-first FastAPI and React application. Docker Compose runs a
 static React build behind Nginx and keeps the backend, model files, and local
 RAG data in a private service boundary.
 
@@ -71,7 +71,7 @@ token is configured and use worker threads for blocking model operations.
    configured order.
 4. Remote calls use timeouts, non-blocking concurrency limits, normalized
    catalogs, and safe fallback errors.
-5. The response includes non-secret `qwendbc` provider/model metadata. SSE
+5. The response includes non-secret `ai-dbc` provider/model metadata. SSE
    streams preserve the `[DONE]` marker and only fall back before content is
    emitted.
 

@@ -1,14 +1,17 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import {
   ApiError,
   fetchHealth,
+  fetchModelInfo,
   fetchModels,
   getAccessToken,
   parseCompletion,
   parseSseEvents,
   saveAccessToken,
+  unloadModel,
 } from "./api.js";
 
 function response(body, status = 200) {
@@ -20,6 +23,14 @@ function response(body, status = 200) {
     },
   };
 }
+
+test("ControlPanel does not expose unsupported streaming controls or private API requests", () => {
+  const source = readFileSync(new URL("./ControlPanel.jsx", import.meta.url), "utf8");
+
+  assert.doesNotMatch(source, /\/model\/streaming/);
+  assert.doesNotMatch(source, /function\s+requestJson\b/);
+  assert.doesNotMatch(source, /Streaming responses|toggleStreaming/);
+});
 
 test("fetchModels uses the API base URL and parses the catalog", async () => {
   const originalFetch = globalThis.fetch;
@@ -43,7 +54,7 @@ test("fetchHealth attaches a session access token without exposing it in errors"
   const originalFetch = globalThis.fetch;
   const storage = {
     getItem(key) {
-      assert.equal(key, "qwendbc.accessToken");
+    assert.equal(key, "ai-dbc.accessToken");
       return "operator-secret";
     },
   };
@@ -61,6 +72,46 @@ test("fetchHealth attaches a session access token without exposing it in errors"
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("fetchModelInfo uses bearer auth with the model info URL and GET method", async () => {
+  const calls = [];
+  const storage = {
+    getItem(key) {
+      assert.equal(key, "ai-dbc.accessToken");
+      return "test-token";
+    },
+  };
+  const fetchImpl = async (url, options) => {
+    calls.push({ url, options });
+    return response({ name: "test-model" });
+  };
+
+  await fetchModelInfo({ storage, fetchImpl });
+
+  assert.equal(calls[0].url, "/api/v1/model/info");
+  assert.equal(calls[0].options.method, "GET");
+  assert.equal(calls[0].options.headers.Authorization, "Bearer test-token");
+});
+
+test("unloadModel uses bearer auth with the unload URL and POST method", async () => {
+  const calls = [];
+  const storage = {
+    getItem(key) {
+      assert.equal(key, "ai-dbc.accessToken");
+      return "test-token";
+    },
+  };
+  const fetchImpl = async (url, options) => {
+    calls.push({ url, options });
+    return response(null, 204);
+  };
+
+  await unloadModel({ storage, fetchImpl });
+
+  assert.equal(calls[0].url, "/api/v1/model/unload");
+  assert.equal(calls[0].options.method, "POST");
+  assert.equal(calls[0].options.headers.Authorization, "Bearer test-token");
 });
 
 test("operator access tokens stay in session storage and can be cleared", () => {

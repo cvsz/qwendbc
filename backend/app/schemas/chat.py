@@ -13,6 +13,9 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: list[ChatMessage] = Field(min_length=1, max_length=128)
+    # OpenAI-compatible clients such as Open WebUI send this flag to the same
+    # completions endpoint instead of using AI-DBC's legacy /stream path.
+    stream: bool = False
     temperature: float = Field(default=settings.TEMPERATURE, ge=0.0, le=2.0)
     top_p: float = Field(default=settings.TOP_P, ge=0.0, le=1.0)
     max_tokens: int = Field(
@@ -63,13 +66,15 @@ class ChatRoutingMetadata(BaseModel):
 
 
 class ChatResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     id: str
     object: str = "chat.completion"
     created: int
     model: str
     choices: list[dict[str, Any]]
     usage: dict[str, Any] = Field(default_factory=dict)
-    qwendbc: ChatRoutingMetadata | None = None
+    ai_dbc: ChatRoutingMetadata | None = Field(default=None, alias="ai-dbc")
 
 
 class DocumentQuery(BaseModel):

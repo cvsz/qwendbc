@@ -10,6 +10,7 @@ Compose network. The default host bindings are loopback-only.
 - a host with enough memory and disk for the GGUF model and embedding cache;
 - an external TLS and identity-aware edge for any non-local deployment;
 - an approved secret-injection mechanism for the application/provider tokens.
+- a separate secret for Open WebUI session signing if Open WebUI is enabled.
 
 ## Production configuration
 
@@ -73,10 +74,16 @@ docker compose up -d
 docker compose ps
 ```
 
+The Compose stack also starts Open WebUI on `http://127.0.0.1:3001` and points
+it at `http://backend:8000/api/v1` using the AI-DBC application token. Set
+`OPENWEBUI_SECRET_KEY` to a separate random value before exposing Open WebUI
+through an authenticated TLS reverse proxy. The Open WebUI data volume is
+`open_webui_data`.
+
 Verify liveness without exposing protected data:
 
 ```bash
-curl --fail http://127.0.0.1:8000/api/v1/health
+curl --fail -H 'Host: chat.example.com' http://127.0.0.1:8000/api/v1/health
 curl --fail http://127.0.0.1:3000/
 ```
 

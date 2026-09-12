@@ -13,8 +13,11 @@ from app.services.llm_service import llm_service
 class FakeLLMService:
     def __init__(self, loaded: bool = True) -> None:
         self.is_loaded = loaded
+        self.model_info_calls = 0
+        self.unload_calls = 0
 
     def get_model_info(self) -> dict[str, Any]:
+        self.model_info_calls += 1
         return {
             "name": "test-model",
             "path": "/tmp/test.gguf" if self.is_loaded else None,
@@ -28,6 +31,7 @@ class FakeLLMService:
         return True
 
     def unload_model(self) -> None:
+        self.unload_calls += 1
         self.is_loaded = False
 
     def generate(self, **_: Any) -> dict[str, Any]:
@@ -57,8 +61,18 @@ class FakeLLMService:
 
 
 @pytest.fixture
-def client() -> Generator[TestClient, None, None]:
-    with TestClient(app) as test_client:
+def client(monkeypatch: pytest.MonkeyPatch) -> Generator[TestClient, None, None]:
+    # Tests must not inherit an operator token or host allowlist from a
+    # developer's untracked .env file.
+    monkeypatch.setattr(settings, "QWENDBC_ACCESS_TOKEN", "")
+    monkeypatch.setattr(settings, "MODEL_MODE", "local")
+    monkeypatch.setattr(settings, "REMOTE_MODELS_ENABLED", False)
+    allowed_host = next(
+        middleware.kwargs["allowed_hosts"][0]
+        for middleware in app.user_middleware
+        if middleware.cls.__name__ == "TrustedHostMiddleware"
+    )
+    with TestClient(app, base_url=f"http://{allowed_host}") as test_client:
         yield test_client
     app.dependency_overrides.clear()
 
@@ -95,6 +109,38 @@ def test_model_surfaces_require_access_when_token_is_configured(
     response = client.get(path)
 
     assert response.status_code == 401
+
+
+@pytest.mark.parametrize(
+    ("path", "method"),
+    [
+        ("/api/v1/model/info", "get"),
+        ("/api/v1/model/unload", "post"),
+    ],
+)
+def test_protected_lifecycle_routes_accept_the_configured_bearer_token(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    path: str,
+    method: str,
+) -> None:
+    fake = FakeLLMService()
+    app.dependency_overrides[get_llm_service] = lambda: fake
+    monkeypatch.setattr(settings, "QWENDBC_ACCESS_TOKEN", "test-token")
+
+    unauthenticated = getattr(client, method)(path)
+    # FastAPI resolves non-auth dependencies before rejecting this request, so
+    # count only the authenticated route invocation below.
+    fake.model_info_calls = 0
+    fake.unload_calls = 0
+    authenticated = getattr(client, method)(path, headers={"Authorization": "Bearer test-token"})
+
+    assert unauthenticated.status_code == 401
+    assert authenticated.status_code == 200
+    if method == "get":
+        assert fake.model_info_calls >= 1
+    else:
+        assert fake.unload_calls == 1
 
 
 def test_chat_completion_requires_loaded_model(client: TestClient) -> None:
@@ -150,6 +196,17 @@ def test_streaming_completion_terminates_with_done(client: TestClient) -> None:
         json={"messages": [{"role": "user", "content": "Hello"}]},
     )
     assert response.status_code == 200
+    assert "data: [DONE]" in response.text
+
+
+def test_openai_stream_flag_uses_the_standard_completions_endpoint(client: TestClient) -> None:
+    app.dependency_overrides[get_llm_service] = lambda: FakeLLMService()
+    response = client.post(
+        "/api/v1/chat/completions",
+        json={"messages": [{"role": "user", "content": "Hello"}], "stream": True},
+    )
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
     assert "data: [DONE]" in response.text
 
 

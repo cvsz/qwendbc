@@ -1,12 +1,12 @@
-# QwenDBC Security Overview
+# AI-DBC Security Overview
 
-This document is the deployment-facing security contract for QwenDBC. It
+This document is the deployment-facing security contract for AI-DBC. It
 describes controls present in the repository and the controls that remain the
 responsibility of the operator.
 
 ## Security model
 
-QwenDBC is local-first. The default Compose configuration binds published
+AI-DBC is local-first. The default Compose configuration binds published
 ports to loopback and keeps hosted model providers disabled. A production
 deployment must add an authenticated edge, TLS, explicit host/origin policy,
 secret injection, monitoring, and tested backups.
@@ -133,7 +133,7 @@ or runtime SLOs have been validated.
 
 `llama-cpp-python` currently requires `diskcache` at import time. The current
 `diskcache 5.6.3` advisory has no upstream fix in the resolver used by this
-repository. QwenDBC does not instantiate `LlamaDiskCache`; the backend runs as
+repository. AI-DBC does not instantiate `LlamaDiskCache`; the backend runs as
 non-root with read-only root storage and writable data volumes restricted to
 the application. CI and `make security` therefore ignore only
 `PYSEC-2026-2447`, explicitly and temporarily. Re-evaluate this exception

@@ -1,4 +1,4 @@
-# QwenDBC Free-Model Routing and Premium Theme
+# AI-DBC Free-Model Routing and Premium Theme
 
 ## Status
 
@@ -6,8 +6,9 @@ Approved rough design; awaiting spec review before implementation.
 
 ## Context
 
-QwenDBC currently exposes a FastAPI backend and React frontend for one local
-Qwen GGUF model. The public deployment at `dbc.zeaz.dev` is healthy, but chat
+AI-DBC currently exposes a FastAPI backend and React frontend for one local
+Qwen GGUF model. The intended public deployment at `ai-dbc.zeaz.dev` is being
+migrated, and chat
 is currently coupled to the local `llama.cpp` service. The project does not
 read the shared `/home/cvsz/.env.ai` file, has no hosted-model adapter, no
 provider fallback, and no day/night/system theme preference.
@@ -251,7 +252,7 @@ Use test-first implementation for each behavior:
 1. Implement behind `REMOTE_MODELS_ENABLED=false`, preserving local behavior.
 2. Run the complete local gates and mocked provider integration tests.
 3. Configure the deployment token and authorized provider settings outside Git.
-4. Rebuild/restart the QwenDBC Compose stack and verify health, catalog, local
+4. Rebuild/restart the AI-DBC Compose stack and verify health, catalog, local
    fallback, authenticated remote chat, theme behavior, and public routing.
 5. Roll back by setting `MODEL_MODE=local` or
    `REMOTE_MODELS_ENABLED=false` and restarting; no data migration is required.
@@ -267,4 +268,4 @@ Use test-first implementation for each behavior:
 - Existing API/document/RAG behavior and CI gates remain green.
 - Day, night, and system themes survive reload, follow OS changes in system
   mode, and remain usable on mobile and with reduced motion.
-- Public `dbc.zeaz.dev` remote access is authenticated and rate-limited.
+- Public `ai-dbc.zeaz.dev` remote access is authenticated and rate-limited.

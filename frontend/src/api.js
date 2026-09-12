@@ -1,6 +1,6 @@
 const configuredApiUrl = import.meta.env?.VITE_API_URL;
 export const API_URL = (configuredApiUrl || "/api/v1").replace(/\/$/, "");
-export const ACCESS_TOKEN_STORAGE_KEY = "qwendbc.accessToken";
+export const ACCESS_TOKEN_STORAGE_KEY = "ai-dbc.accessToken";
 
 export class ApiError extends Error {
   constructor(status, message) {
@@ -48,10 +48,10 @@ function requestUrl(path) {
 function safeMessage(status) {
   if (status === 401) return "Authentication is required for this action.";
   if (status === 403) return "This action is not available for the current access.";
-  if (status === 404) return "The requested QwenDBC resource was not found.";
+  if (status === 404) return "The requested AI-DBC resource was not found.";
   if (status === 408 || status === 504) return "The request timed out. Please try again.";
   if (status === 429) return "Too many requests. Please wait a moment and try again.";
-  if (status >= 500) return "The QwenDBC backend is unavailable right now.";
+  if (status >= 500) return "The AI-DBC backend is unavailable right now.";
   return "The request was rejected. Check the input and try again.";
 }
 
@@ -90,7 +90,7 @@ export async function apiRequest(
       body: bodyForFetch(options.body, headers),
     });
   } catch {
-    throw new ApiError(0, "The QwenDBC backend could not be reached.");
+    throw new ApiError(0, "The AI-DBC backend could not be reached.");
   }
 
   let payload = null;
@@ -111,12 +111,20 @@ export function fetchHealth(options = {}) {
   return apiRequest("/health", { method: "GET", ...options });
 }
 
+export function fetchModelInfo(options = {}) {
+  return apiRequest("/model/info", { method: "GET", ...options });
+}
+
 export function refreshModels(options = {}) {
   return apiRequest("/models/refresh", { method: "POST", ...options });
 }
 
 export function loadModel(options = {}) {
   return apiRequest("/model/load", { method: "POST", ...options });
+}
+
+export function unloadModel(options = {}) {
+  return apiRequest("/model/unload", { method: "POST", ...options });
 }
 
 export function chatCompletion(messages, options = {}) {

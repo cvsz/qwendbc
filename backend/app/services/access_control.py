@@ -73,7 +73,8 @@ def _check_fixed_window(key: str, limit: int) -> None:
 
 
 def _request_settings(request: Request) -> Settings:
-    return getattr(request.app.state, "settings", settings)
+    configured = getattr(request.app.state, "settings", settings)
+    return configured if isinstance(configured, Settings) else settings
 
 
 def require_access(request: Request) -> None:

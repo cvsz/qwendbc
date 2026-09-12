@@ -1,6 +1,6 @@
 # API Reference
 
-Complete API documentation for QwenDBC backend services.
+Complete API documentation for AI-DBC backend services.
 
 ## Base URL
 
@@ -170,6 +170,7 @@ Generate a chat completion response.
   "temperature": 0.7,
   "top_p": 0.9,
   "max_tokens": 2048,
+  "stream": false,
   "provider": "openrouter",
   "model": "openrouter/free",
   "use_rag": false,
@@ -212,6 +213,7 @@ Generate a chat completion response.
 | `temperature` | float | No | 0.7 | Sampling temperature (0.0-2.0) |
 | `top_p` | float | No | 0.9 | Nucleus sampling parameter (0.0-1.0) |
 | `max_tokens` | int | No | 2048 | Maximum tokens to generate (1-`MAX_CONTEXT_LENGTH`) |
+| `stream` | boolean | No | false | Return SSE chunks from this endpoint when true; supported by OpenAI-compatible clients |
 | `provider` | string | No | configured route | Optional provider selection |
 | `model` | string | No | configured route | Optional eligible model selection |
 | `use_rag` | boolean | No | false | Add local retrieved context to the latest user message |
@@ -286,6 +288,10 @@ After the SSE response starts, provider failures are represented by a safe
 `data: {"error":"..."}` event followed by `data: [DONE]`; HTTP status cannot
 be changed after streaming headers have been sent.
 
+OpenAI-compatible clients can use `POST /chat/completions` with
+`{"stream": true}` instead of this legacy streaming path. This is the mode used
+by the bundled Open WebUI service.
+
 ---
 
 ### Model Catalog
@@ -349,7 +355,7 @@ class ChatResponse(BaseModel):
     model: str
     choices: List[dict]
     usage: dict
-    qwendbc: Optional[dict]
+    ai_dbc: Optional[dict]  # serialized as "ai-dbc"
 ```
 
 ### HealthResponse

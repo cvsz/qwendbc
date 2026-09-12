@@ -117,7 +117,7 @@ def test_auto_mode_uses_configured_order_and_skips_rate_limited_provider() -> No
     result = router.complete([{"role": "user", "content": "hello"}], max_tokens=16)
 
     assert result["choices"][0]["message"]["content"] == "answer"
-    assert result["qwendbc"] == {
+    assert result["ai-dbc"] == {
         "provider": "opencode",
         "model": "opencode-free",
         "fallback": True,
@@ -133,7 +133,7 @@ def test_local_provider_is_final_fallback_when_loaded() -> None:
     result = router.complete([{"role": "user", "content": "hello"}], max_tokens=16)
 
     assert result["choices"][0]["message"]["content"] == "local answer"
-    assert result["qwendbc"] == {"provider": "local", "model": "local-model", "fallback": True}
+    assert result["ai-dbc"] == {"provider": "local", "model": "local-model", "fallback": True}
 
 
 def test_stream_falls_back_only_before_first_content_chunk() -> None:
@@ -148,7 +148,7 @@ def test_stream_falls_back_only_before_first_content_chunk() -> None:
     assert chunks == [
         {
             **stream_chunk("answer", "opencode-free"),
-            "qwendbc": {"provider": "opencode", "model": "opencode-free", "fallback": True},
+            "ai-dbc": {"provider": "opencode", "model": "opencode-free", "fallback": True},
         }
     ]
 
@@ -159,7 +159,7 @@ def test_stream_includes_selected_route_metadata() -> None:
 
     chunks = list(router.stream([{"role": "user", "content": "hello"}], max_tokens=16))
 
-    assert chunks[0]["qwendbc"] == {
+    assert chunks[0]["ai-dbc"] == {
         "provider": "kilo",
         "model": "kilo-free",
         "fallback": False,
@@ -256,7 +256,7 @@ def test_explicit_provider_uses_its_default_when_no_model_is_requested() -> None
     )
 
     assert result["choices"][0]["message"]["content"] == "answer"
-    assert result["qwendbc"]["provider"] == "opencode"
+    assert result["ai-dbc"]["provider"] == "opencode"
 
 
 def test_automatic_mode_skips_a_paid_configured_default() -> None:
@@ -268,7 +268,7 @@ def test_automatic_mode_skips_a_paid_configured_default() -> None:
 
     result = router.complete([{"role": "user", "content": "hello"}], max_tokens=16)
 
-    assert result["qwendbc"]["provider"] == "local"
+    assert result["ai-dbc"]["provider"] == "local"
 
 
 def test_runtime_state_reports_non_secret_route_status() -> None:

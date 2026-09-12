@@ -22,7 +22,7 @@ Do not assume a specific response or remediation deadline unless a maintainer ex
 
 ## Current security boundary
 
-QwenDBC is designed primarily for local/private use. The application currently provides:
+AI-DBC is designed primarily for local/private use. The application currently provides:
 
 - Pydantic request and configuration validation, including bounded message,
   upload, generation, and retrieval parameters;
@@ -75,7 +75,7 @@ access-controlled backups with restore tests.
 - Do not enable remote providers without reviewing their terms, data handling,
   quotas, and failure behavior.
 - The current `diskcache` advisory is an explicitly documented exception for
-  the mandatory `llama-cpp-python` import-time dependency; QwenDBC does not
+  the mandatory `llama-cpp-python` import-time dependency; AI-DBC does not
   enable its disk cache. Re-evaluate and remove the audit ignore when upstream
   publishes a fix.
 - Do not treat a workflow as validated when GitHub Actions is disabled or no workflow run exists for the commit.

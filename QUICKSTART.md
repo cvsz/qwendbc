@@ -1,4 +1,4 @@
-# QwenDBC Quick Start
+# AI-DBC Quick Start
 
 ## Docker (recommended)
 
@@ -97,7 +97,7 @@ QWENDBC_ACCESS_TOKEN=replace-with-an-operator-token
 FREE_PROVIDER_ORDER=kilo,opencode,openrouter,local
 ```
 
-Never copy provider keys into the frontend or commit them. QwenDBC reads the
+Never copy provider keys into the frontend or commit them. AI-DBC reads the
 project `.env` and process environment only; it never loads the shared
 `.env.ai` operator reference. The frontend's **Operator access** field stores
 the application token only in the current browser session.
@@ -122,7 +122,7 @@ curl -X POST http://localhost:8000/api/v1/chat/completions \
 
 Automatic fallback follows `kilo,opencode,openrouter,local`. Only free text
 models are eligible, and the response reports its selected provider/model in
-`qwendbc` metadata. Set `MODEL_MODE=local` or
+`ai-dbc` metadata. Set `MODEL_MODE=local` or
 `REMOTE_MODELS_ENABLED=false`, then restart, to roll back remote routing.
 
 For a production configuration, set an explicit public origin and host, keep

@@ -1,6 +1,6 @@
 # User Guide: Getting Started
 
-QwenDBC provides a local-first chat interface for a Qwen GGUF model. Hosted
+AI-DBC provides a local-first chat interface for a Qwen GGUF model. Hosted
 free-provider routing and local document retrieval are optional.
 
 ## Start the application

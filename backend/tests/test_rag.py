@@ -40,7 +40,12 @@ class FakeRAGService:
 @pytest.fixture
 def client() -> Generator[TestClient, None, None]:
     app.dependency_overrides[get_rag_service] = lambda: FakeRAGService()
-    with TestClient(app) as test_client:
+    allowed_host = next(
+        middleware.kwargs["allowed_hosts"][0]
+        for middleware in app.user_middleware
+        if middleware.cls.__name__ == "TrustedHostMiddleware"
+    )
+    with TestClient(app, base_url=f"http://{allowed_host}") as test_client:
         yield test_client
     app.dependency_overrides.clear()
 
@@ -117,7 +122,7 @@ def test_chat_rag_injects_labeled_context_before_completion(client: TestClient) 
                 "model": "test-model",
                 "choices": [{"index": 0, "message": {"role": "assistant", "content": "ok"}}],
                 "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
-                "qwendbc": {"provider": "local", "model": "test-model", "fallback": False},
+                "ai-dbc": {"provider": "local", "model": "test-model", "fallback": False},
             }
 
     app.dependency_overrides[get_model_router] = FakeRouter

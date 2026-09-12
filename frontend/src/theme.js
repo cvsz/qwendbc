@@ -1,5 +1,5 @@
 export const THEME_OPTIONS = Object.freeze(["day", "night", "system"]);
-export const THEME_STORAGE_KEY = "qwendbc.theme";
+export const THEME_STORAGE_KEY = "ai-dbc.theme";
 
 function isThemePreference(value) {
   return THEME_OPTIONS.includes(value);

@@ -1,6 +1,6 @@
 # Development Setup
 
-This guide covers a reproducible local development loop for QwenDBC.
+This guide covers a reproducible local development loop for AI-DBC.
 
 ## Prerequisites
 

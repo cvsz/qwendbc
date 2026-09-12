@@ -1,6 +1,6 @@
 ---
 name: Sponsorship inquiry
-about: Discuss possible sponsorship of QwenDBC work
+about: Discuss possible sponsorship of AI-DBC work
 title: '[Sponsorship] '
 labels: ''
 assignees: ''

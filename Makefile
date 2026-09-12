@@ -16,7 +16,7 @@ BLACK := $(VENV)/bin/black
 FLAKE8 := $(VENV)/bin/flake8
 MYPY := $(VENV)/bin/mypy
 PIP_AUDIT := $(VENV)/bin/pip-audit
-# llama-cpp-python requires diskcache at import time, but QwenDBC never enables
+# llama-cpp-python requires diskcache at import time, but AI-DBC never enables
 # LlamaDiskCache. The current diskcache advisory has no upstream fix; the
 # container runs non-root with read-only storage, so keep this exception
 # explicit and revisit it whenever the LLM dependency changes.
@@ -26,11 +26,11 @@ UVICORN := $(VENV)/bin/uvicorn
 .PHONY: help install full-stack full-stack-install full-feature fullfeature setup setup-backend setup-frontend init-env dev backend frontend \
         test test-backend test-frontend lint lint-backend lint-frontend format \
         security shellcheck docker-build docker-up docker-down docker-logs \
-        docker-clean health model-info clean all
+        docker-clean health model-info clean all tunnel
 
 help:
 	@printf '%s\n' \
-	  'QwenDBC targets:' \
+  'AI-DBC targets:' \
 	  '  make install           Build/start Docker full stack (alias: full-stack)' \
 	  '  make full-stack        Build/start Docker full stack (override host ports if needed)' \
 	  '  make setup             Install backend + frontend dependencies and create .env' \
@@ -58,7 +58,7 @@ full-stack-install: init-env
 	$(COMPOSE_ENV) $(DOCKER) compose config --quiet
 	$(COMPOSE_ENV) $(DOCKER) compose up -d --build --wait
 	@printf '%s\n' \
-	  'QwenDBC full stack is running:' \
+  'AI-DBC full stack is running:' \
 	  '  Frontend: http://localhost:$(FRONTEND_HOST_PORT)' \
 	  '  Backend:  http://localhost:$(BACKEND_HOST_PORT)' \
 	  '  API docs: http://localhost:$(BACKEND_HOST_PORT)/docs' \
@@ -66,6 +66,26 @@ full-stack-install: init-env
 
 # full-stack: convenience alias for full-stack-install.
 full-stack: full-stack-install
+
+# tunnel: Production Cloudflare Tunnel stack (no SSL certs – CF terminates TLS).
+# nginx-proxy listens on 127.0.0.1:${NGINX_HOST_PORT:-3100} matching dbc_origin in Terraform.
+tunnel: init-env
+	$(COMPOSE_ENV) $(DOCKER) compose \
+	  -f docker-compose.yml \
+	  -f docker-compose.prod.yml \
+	  -f docker-compose.tunnel.yml \
+	  config --quiet
+	$(COMPOSE_ENV) $(DOCKER) compose \
+	  -f docker-compose.yml \
+	  -f docker-compose.prod.yml \
+	  -f docker-compose.tunnel.yml \
+	  up -d --build --wait
+	@printf '%s\n' \
+	  'AI-DBC Cloudflare Tunnel stack is running:' \
+	  '  Nginx proxy: http://127.0.0.1:$${NGINX_HOST_PORT:-3100} (CF tunnel entry)' \
+	  '  OpenWebUI:   http://127.0.0.1:$${OPENWEBUI_HOST_PORT:-3001}' \
+	  '  Backend:     http://127.0.0.1:$${BACKEND_HOST_PORT:-8000}' \
+	  '  Public URL:  https://ai-dbc.zeaz.dev'
 
 $(VENV)/bin/python:
 	$(PYTHON_SYSTEM) -m venv $(VENV)

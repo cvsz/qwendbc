@@ -1,6 +1,6 @@
-# Contributing to QwenDBC
+# Contributing to AI-DBC
 
-Thank you for contributing to QwenDBC. Keep changes focused, testable, and aligned with the repository's local-first security model.
+Thank you for contributing to AI-DBC. Keep changes focused, testable, and aligned with the repository's local-first security model.
 
 ## Prerequisites
 

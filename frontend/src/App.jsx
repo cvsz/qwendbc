@@ -152,7 +152,7 @@ function App() {
 
     const [healthResult, catalogResult] = await Promise.all([healthRequest, catalogRequest]);
     if (!signal?.aborted && !healthResult && !catalogResult) {
-      setNotice({ tone: "error", message: "The QwenDBC backend could not be reached." });
+      setNotice({ tone: "error", message: "The AI-DBC backend could not be reached." });
     }
   }, []);
 
@@ -270,11 +270,11 @@ function App() {
       setMessages((previous) =>
         [...previous, { role: "assistant", content }].slice(-MAX_API_MESSAGES),
       );
-      setRouting(data.qwendbc || null);
-      if (data.qwendbc?.fallback) {
+      setRouting(data["ai-dbc"] || null);
+      if (data["ai-dbc"]?.fallback) {
         setNotice({
           tone: "warning",
-          message: `Fallback used: ${providerLabel(data.qwendbc.provider)} is answering this request.`,
+          message: `Fallback used: ${providerLabel(data["ai-dbc"].provider)} is answering this request.`,
         });
       }
     } catch (error) {
@@ -304,12 +304,12 @@ function App() {
     <div className="app-shell" data-resolved-theme={resolvedTheme}>
       <header className="site-header">
         <div className="header-inner">
-          <a className="brand" href="#chat" aria-label="QwenDBC home">
+          <a className="brand" href="#chat" aria-label="AI-DBC home">
             <span className="brand-mark" aria-hidden="true">
-              Q
+              A
             </span>
             <span>
-              <span className="brand-name">QwenDBC</span>
+              <span className="brand-name">AI-DBC</span>
               <span className="brand-caption">knowledge interface / 01</span>
             </span>
           </a>
@@ -443,7 +443,7 @@ function App() {
             </div>
           </section>
 
-          <aside className="control-column" id="control-room" aria-label="QwenDBC control room">
+          <aside className="control-column" id="control-room" aria-label="AI-DBC control room">
             <section className="control-card surface" aria-labelledby="route-title">
               <div className="card-heading">
                 <div>
@@ -598,7 +598,7 @@ function App() {
           </div>
         )}
 
-        <section className="trust-strip" id="notes" aria-label="QwenDBC guarantees">
+        <section className="trust-strip" id="notes" aria-label="AI-DBC guarantees">
           <div>
             <span className="strip-label">01 / LOCAL</span>
             <p>GGUF inference stays available as the final fallback when loaded.</p>
@@ -616,7 +616,7 @@ function App() {
 
       <footer className="site-footer">
         <div className="footer-inner">
-          <span>QwenDBC / local-first intelligence</span>
+          <span>AI-DBC / local-first intelligence</span>
           <span>Built for focused work.</span>
         </div>
       </footer>

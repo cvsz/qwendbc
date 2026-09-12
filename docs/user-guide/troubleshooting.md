@@ -23,6 +23,8 @@ Inspect the logs for configuration validation errors. Common causes include:
 - `ENVIRONMENT=production` without a 32-character application token;
 - wildcard/empty `ALLOWED_HOSTS` or wildcard production CORS origins;
 - `MAX_TOKENS` greater than `MAX_CONTEXT_LENGTH`;
+- production model revisions/checksum are missing or the container health probe
+  uses a Host value that is not in `ALLOWED_HOSTS`;
 - an invalid provider order that does not end with `local`;
 - insufficient permissions on the model or RAG volumes.
 
@@ -39,6 +41,12 @@ In Docker, the browser calls the frontend origin and Nginx proxies `/api/` to
 the backend service. Confirm both services are healthy and inspect the
 frontend logs. In local development, Vite proxies to
 `http://127.0.0.1:8000`.
+
+Open WebUI is a separate Compose service on port `3001`. Its upstream must be
+`http://backend:8000/api/v1` from inside Compose; using `localhost:8000` from
+the Open WebUI container points back to Open WebUI itself. Confirm the
+`open_webui_data` volume is mounted and that `OPENAI_API_KEYS` matches the
+AI-DBC application token when access control is enabled.
 
 If a browser reports a CORS or Host error, check that the public origin appears
 exactly in `ALLOWED_ORIGINS` and the incoming host appears in `ALLOWED_HOSTS`.
@@ -79,7 +87,7 @@ repositories.
 
 ## Chat fails or falls back
 
-Inspect the response's non-secret `qwendbc` metadata. Automatic routing tries
+Inspect the response's non-secret `ai-dbc` metadata. Automatic routing tries
 the configured free-provider order and ends at local fallback. Providers may
 be unavailable because credentials are absent, the catalog has no eligible
 free text model, the request timed out, or a provider returned a retryable

@@ -1,0 +1,17 @@
+# Cloudflare Tunnel production override for AI-DBC
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.tunnel.yml up -d --build --wait
+#
+# This overlay:
+#   - Replaces the SSL nginx.prod.conf with nginx.tunnel.conf (HTTP-only, port 8080 inside)
+#   - Binds nginx on host 127.0.0.1:3100 (matching dbc_origin in Terraform / cloudflared ingress)
+#   - Removes the certbot profile (no certs needed — CF terminates TLS)
+#   - Drops ports 80 and 443 from the host (all traffic enters via cloudflared)
+services:
+  nginx-proxy:
+    volumes:
+      - ./docker/nginx.tunnel.conf:/etc/nginx/conf.d/default.conf:ro
+    # Drop 80/443 from docker-compose.prod.yml; CF Tunnel is the only entry point.
+    # Compose v2 merges port arrays; we add 127.0.0.1:3100->8080 explicitly.
+    # Run with: docker compose -f docker-compose.yml -f docker-compose.prod.yml -f docker-compose.tunnel.yml
+    ports: !override
+      - "127.0.0.1:${NGINX_HOST_PORT:-3100}:8080"

@@ -1,0 +1,137 @@
+{
+  "$schema": "https://app.kilo.ai/config.json",
+  "permission": {
+    "*": {
+      "*": "allow"
+    }
+  },
+  "provider": {
+    "anthropic": {
+      "options": {
+        "apiKey": "${ANTHROPIC_API_KEY}"
+      },
+      "models": {
+        "claude-sonnet-4-5": {
+          "name": "Claude Sonnet 4.5"
+        },
+        "claude-opus-4": {
+          "name": "Claude Opus 4"
+        },
+        "claude-3-5-haiku": {
+          "name": "Claude 3.5 Haiku"
+        }
+      }
+    },
+    "openai": {
+      "options": {
+        "apiKey": "${OPENAI_API_KEY}"
+      },
+      "models": {
+        "o3": {
+          "name": "OpenAI o3"
+        },
+        "o4-mini": {
+          "name": "OpenAI o4-mini"
+        },
+        "gpt-4.1": {
+          "name": "GPT-4.1"
+        },
+        "codex": {
+          "name": "OpenAI Codex"
+        }
+      }
+    },
+    "google": {
+      "options": {
+        "apiKey": "${GOOGLE_API_KEY}"
+      },
+      "models": {
+        "gemini-2.5-pro": {
+          "name": "Gemini 2.5 Pro"
+        },
+        "gemini-2.5-flash": {
+          "name": "Gemini 2.5 Flash"
+        }
+      }
+    },
+    "groq": {
+      "options": {
+        "apiKey": "${GROQ_API_KEY}"
+      },
+      "models": {
+        "llama-3.3-70b": {
+          "name": "Llama 3.3 70B"
+        },
+        "llama-3.1-8b": {
+          "name": "Llama 3.1 8B"
+        }
+      }
+    },
+    "kilo": {
+      "options": {
+        "apiKey": "${KILO_API_KEY}"
+      },
+      "models": {
+        "kilo-auto": {
+          "name": "Kilo Auto"
+        },
+        "kilo-code": {
+          "name": "Kilo Code"
+        },
+        "opencode": {
+          "name": "OpenCode"
+        }
+      }
+    },
+    "openrouter": {
+      "options": {
+        "apiKey": "${OPENROUTER_API_KEY}"
+      },
+      "models": {
+        "anthropic/claude-opus-4": {
+          "name": "OpenRouter Claude Opus 4"
+        },
+        "openai/gpt-4.1": {
+          "name": "OpenRouter GPT-4.1"
+        },
+        "google/gemini-2.5-pro": {
+          "name": "OpenRouter Gemini 2.5 Pro"
+        },
+        "x-ai/grok-3": {
+          "name": "OpenRouter Grok 3"
+        }
+      }
+    },
+    "xai": {
+      "options": {
+        "apiKey": "${XAI_API_KEY}"
+      },
+      "models": {
+        "grok-3": {
+          "name": "Grok 3"
+        },
+        "grok-2": {
+          "name": "Grok 2"
+        }
+      }
+    }
+  },
+  "model": "anthropic/claude-sonnet-4-5",
+  "small_model": "anthropic/claude-3-5-haiku",
+  "default_agent": "code",
+  "instructions": [
+    "AGENTS.md",
+    "CLAUDE.md",
+    ".kilo/agent/*.md"
+  ],
+  "skills": {
+    "paths": ["./.kilo/skills"]
+  },
+  "agent": {
+    "code": {
+      "mode": "primary",
+      "description": "Default coding agent"
+    }
+  },
+  "mcp": {}
+}

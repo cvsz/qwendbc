@@ -35,7 +35,7 @@ All notable changes to this project are documented here. The format follows [Kee
 ### Fixed
 
 - Replaced the invalid prose-only `.gitignore` with real ignore patterns.
-- Removed the invalid self-referencing/dangling root `qwendbc` gitlink.
+- Removed the invalid self-referencing/dangling root `ai-dbc` gitlink.
 - Removed the tracked GGUF symlink pointing into another machine's Hugging Face cache.
 - Stopped tracking the root `.env` while preserving a developer's local file during bundle application.
 - Fixed Makefile test paths, missing coverage tooling, mutating lint behavior, and destructive cleanup targets.
@@ -52,7 +52,7 @@ All notable changes to this project are documented here. The format follows [Kee
 - Fixed invalid pytest configuration that used TOML syntax inside `pytest.ini`.
 - Fixed `actions/first-interaction` input names and removed unnecessary checkout from the welcome workflow.
 - Removed placeholder PyPI publishing and CI/release constructs that masked failures with successful exit codes.
-- Replaced stale fork metadata (`@policedbc` CODEOWNERS/security links) with `@cvsz` / `cvsz/qwendbc`.
+- Replaced stale fork metadata (`@policedbc` CODEOWNERS/security links) with `@cvsz` / `cvsz/ai-dbc`.
 - Replaced the Code of Conduct's `[INSERT CONTACT METHOD]` placeholder with non-sensitive maintainer contact guidance.
 
 ### Security
@@ -69,5 +69,5 @@ All notable changes to this project are documented here. The format follows [Kee
 
 - Initial FastAPI/llama.cpp chat application, React frontend, Docker configuration, and local model configuration.
 
-[Unreleased]: https://github.com/cvsz/qwendbc/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/cvsz/qwendbc/releases/tag/v1.0.0
+[Unreleased]: https://github.com/cvsz/ai-dbc/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/cvsz/ai-dbc/releases/tag/v1.0.0

@@ -1,6 +1,6 @@
-# QwenDBC Documentation
+# AI-DBC Documentation
 
-Welcome to the **QwenDBC** documentation. This project provides a local-first
+Welcome to the **AI-DBC** documentation. This project provides a local-first
 AI chat solution using a Qwen GGUF model, with a FastAPI backend, React
 interface, optional free-provider routing, and private document retrieval.
 
@@ -33,7 +33,7 @@ interface, optional free-provider routing, and private document retrieval.
 
 ## 🏗️ Project Overview
 
-QwenDBC is a full-stack application that enables local AI chat capabilities using the Qwen language model. Key features include:
+AI-DBC is a full-stack application that enables local AI chat capabilities using the Qwen language model. Key features include:
 
 - **Local Execution**: Runs locally by default; remote providers are opt-in
 - **Privacy First**: Local model, SQLite RAG data, and provider keys stay server-side
@@ -61,8 +61,8 @@ QwenDBC is a full-stack application that enables local AI chat capabilities usin
 
 ```bash
 # Clone the repository
-git clone https://github.com/cvsz/qwendbc.git
-cd qwendbc
+git clone https://github.com/cvsz/ai-dbc.git
+cd ai-dbc
 
 # Start with Docker Compose
 docker compose up -d
@@ -113,9 +113,9 @@ docker compose up -d
 
 ## 📞 Support
 
-- **Issues**: [GitHub Issues](https://github.com/cvsz/qwendbc/issues)
+- **Issues**: [GitHub Issues](https://github.com/cvsz/ai-dbc/issues)
 - **Security Reports**: [SECURITY.md](../SECURITY.md)
-- **Discussions**: [GitHub Discussions](https://github.com/cvsz/qwendbc/discussions)
+- **Discussions**: [GitHub Discussions](https://github.com/cvsz/ai-dbc/discussions)
 
 ## 📄 License
 

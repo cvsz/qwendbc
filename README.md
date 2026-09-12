@@ -1,11 +1,11 @@
-# QwenDBC
+# AI-DBC
 
-[![CI](https://github.com/cvsz/qwendbc/actions/workflows/ci-cd.yml/badge.svg?branch=main)](https://github.com/cvsz/qwendbc/actions/workflows/ci-cd.yml)
-[![CodeQL Analysis](https://github.com/cvsz/qwendbc/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/cvsz/qwendbc/actions/workflows/codeql.yml)
-[![Dependency Review](https://github.com/cvsz/qwendbc/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/cvsz/qwendbc/actions/workflows/dependency-review.yml)
-[![Release](https://github.com/cvsz/qwendbc/actions/workflows/release.yml/badge.svg)](https://github.com/cvsz/qwendbc/actions/workflows/release.yml)
+[![CI](https://github.com/cvsz/ai-dbc/actions/workflows/ci-cd.yml/badge.svg?branch=main)](https://github.com/cvsz/ai-dbc/actions/workflows/ci-cd.yml)
+[![CodeQL Analysis](https://github.com/cvsz/ai-dbc/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/cvsz/ai-dbc/actions/workflows/codeql.yml)
+[![Dependency Review](https://github.com/cvsz/ai-dbc/actions/workflows/dependency-review.yml/badge.svg)](https://github.com/cvsz/ai-dbc/actions/workflows/dependency-review.yml)
+[![Release](https://github.com/cvsz/ai-dbc/actions/workflows/release.yml/badge.svg)](https://github.com/cvsz/ai-dbc/actions/workflows/release.yml)
 
-QwenDBC is a local-first FastAPI + React application for running a GGUF Qwen model with `llama.cpp`, plus local document ingestion and semantic search with SQLite and `sentence-transformers`. When explicitly enabled, it can route free text chat through Kilo, OpenCode, and OpenRouter before falling back to a loaded local model.
+AI-DBC is a local-first FastAPI + React application for running a GGUF Qwen model with `llama.cpp`, plus local document ingestion and semantic search with SQLite and `sentence-transformers`. When explicitly enabled, it can route free text chat through Kilo, OpenCode, and OpenRouter before falling back to a loaded local model.
 
 ## Current stack
 
@@ -39,6 +39,7 @@ docker compose up --build
 Open:
 
 - Frontend: http://localhost:3000
+- Open WebUI: http://localhost:3001
 - Backend API: http://localhost:8000
 - OpenAPI docs: http://localhost:8000/docs
 
@@ -58,6 +59,13 @@ The Makefile health and status targets use the same port variables.
 The first model load downloads the configured GGUF file into the Docker `model_data` volume. The repository does **not** track local GGUF files or Hugging Face cache symlinks.
 
 Docker loads `configs/.env.example` into the backend container and then applies an optional root `.env` as an override. Container-only paths (`MODEL_PATH` and `CHROMA_DB_PATH`) are overridden by Compose so all other documented settings work consistently in Docker. The backend runs as a non-root user with a read-only root filesystem; model and RAG volumes are the only persistent writable paths.
+
+The optional Open WebUI service is included in the Compose stack and uses the
+AI-DBC OpenAI-compatible API over the private Compose network. It stores its
+users and chats in the `open_webui_data` volume. Set a separate
+`OPENWEBUI_SECRET_KEY` before production use; do not reuse a provider key.
+Open WebUI's API connection is preconfigured with `QWENDBC_ACCESS_TOKEN` when
+one is set.
 
 ## Local development
 
@@ -136,7 +144,7 @@ curl -X POST http://localhost:8000/api/v1/chat/completions \
 Automatic free routing follows `FREE_PROVIDER_ORDER`—by default
 `kilo,opencode,openrouter,local`. A provider is skipped on outage, rate limit,
 timeout, missing eligible model, or configuration failure. The response's
-`qwendbc` metadata identifies the selected provider/model and whether fallback
+  `ai-dbc` metadata identifies the selected provider/model and whether fallback
 was used. Streaming preserves the existing SSE contract and only falls back
 before the first content chunk.
 
@@ -168,6 +176,8 @@ Document indexing is lazy: the private SQLite RAG store and embedding model init
 Copy `configs/.env.example` to the repository root as `.env`. Important settings include:
 
 - `HOST`, `PORT`, `BACKEND_BIND_HOST`, and `FRONTEND_BIND_HOST`
+- `HEALTHCHECK_HOST`, `OPENWEBUI_IMAGE`, `OPENWEBUI_URL`, and
+  `OPENWEBUI_SECRET_KEY`
 - `TRUST_PROXY_HEADERS` (enable only when the backend is reached through a
   trusted proxy that overwrites `X-Real-IP`)
 - `MODEL_NAME`, `MODEL_FILE`, `MODEL_REVISION`, `MODEL_SHA256`, and `MODEL_PATH`

@@ -1,3 +1,4 @@
+import asyncio
 from typing import Any
 
 import pytest
@@ -5,6 +6,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from app.main import create_app
+from app.routers import chat
 from app.routers.chat import get_model_router
 from app.schemas.chat import ChatRequest
 from app.schemas.config import Settings
@@ -179,3 +181,46 @@ def test_stream_remote_capacity_failure_is_returned_before_sse_headers(
         )
 
     assert response.status_code == 429
+
+
+def test_stream_releases_remote_capacity_once_after_a_provider_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class Lease:
+        def __init__(self) -> None:
+            self.release_calls = 0
+
+        def release(self) -> None:
+            self.release_calls += 1
+
+    class RemoteRouter:
+        config = Settings(
+            _env_file=None,
+            REMOTE_MODELS_ENABLED=True,
+            QWENDBC_ACCESS_TOKEN="test-access-token-with-at-least-32-characters",
+        )
+
+        def validate_request(self, **_: Any) -> bool:
+            return True
+
+        def stream(self, **_: Any) -> Any:
+            yield {"choices": [{"delta": {"content": "partial"}}]}
+            raise RuntimeError("provider connection closed")
+
+    lease = Lease()
+    monkeypatch.setattr(chat, "reserve_remote_call", lambda _: lease)
+
+    async def consume() -> list[str]:
+        response = await chat._stream_completion(
+            ChatRequest(messages=[{"role": "user", "content": "hello"}]),
+            RemoteRouter(),
+            object(),  # RAG is not touched when use_rag is false.
+        )
+        return [item async for item in response.body_iterator]
+
+    events = asyncio.run(consume())
+
+    assert any("partial" in event for event in events)
+    assert any("Internal server error" in event for event in events)
+    assert events[-1] == "data: [DONE]\n\n"
+    assert lease.release_calls == 1

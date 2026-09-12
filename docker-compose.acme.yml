@@ -1,0 +1,4 @@
+services:
+  nginx-proxy:
+    volumes:
+      - ./docker/nginx.acme.conf:/etc/nginx/conf.d/default.conf:ro

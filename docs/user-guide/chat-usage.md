@@ -1,6 +1,6 @@
 # User Guide - Chat Usage
 
-Detailed guide on using the QwenDBC chat interface effectively.
+Detailed guide on using the AI-DBC chat interface effectively.
 
 ## Overview
 

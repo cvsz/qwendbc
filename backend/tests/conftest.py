@@ -8,6 +8,8 @@ tests replace their runtime behavior with fakes.
 import sys
 from types import ModuleType
 
+import pytest
+
 if "huggingface_hub" not in sys.modules:
     huggingface_hub = ModuleType("huggingface_hub")
     huggingface_hub.hf_hub_download = lambda **_: ""
@@ -83,3 +85,13 @@ if "python_multipart" not in sys.modules:
     multipart_module.parse_options_header = parse_options_header
     sys.modules["python_multipart"] = python_multipart
     sys.modules["python_multipart.multipart"] = multipart_module
+
+
+@pytest.fixture(autouse=True)
+def isolate_global_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep test behavior independent of an operator's untracked .env file."""
+    from app.schemas.config import Settings, settings
+
+    defaults = Settings(_env_file=None)
+    for field_name in Settings.model_fields:
+        monkeypatch.setattr(settings, field_name, getattr(defaults, field_name))

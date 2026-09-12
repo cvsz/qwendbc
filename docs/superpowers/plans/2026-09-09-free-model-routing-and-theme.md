@@ -290,15 +290,15 @@ def test_auto_mode_uses_configured_order_and_skips_rate_limited_provider() -> No
     router = ModelRouter(FakeLocalService(loaded=False), make_settings(), providers=providers)
     result = router.complete([{"role": "user", "content": "hello"}], max_tokens=16)
     assert result["choices"][0]["message"]["content"] == "answer"
-    assert result["qwendbc"]["provider"] == "opencode"
-    assert result["qwendbc"]["fallback"] is True
+    assert result["ai-dbc"]["provider"] == "opencode"
+    assert result["ai-dbc"]["fallback"] is True
 
 
 def test_local_provider_is_final_fallback_when_loaded() -> None:
     providers = [FakeProvider("kilo", error=ProviderError("down", retryable=True))]
     router = ModelRouter(FakeLocalService(loaded=True, text="local answer"), make_settings(), providers=providers)
     result = router.complete([{"role": "user", "content": "hello"}], max_tokens=16)
-    assert result["qwendbc"]["provider"] == "local"
+    assert result["ai-dbc"]["provider"] == "local"
 
 
 def test_invalid_bearer_token_is_rejected(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -337,7 +337,8 @@ locking. Build remote providers from settings in this order: Kilo with
 `https://openrouter.ai/api/v1` and `openrouter/free`; append local. Cache each
 catalog for a short TTL and expose configured/available state without keys.
 For automatic non-streaming calls, try the configured order and attach
-`qwendbc.provider`, `qwendbc.model`, `qwendbc.fallback`, and optional RAG source
+`response["ai-dbc"]["provider"]`, `response["ai-dbc"]["model"]`,
+`response["ai-dbc"]["fallback"]`, and optional RAG source
 metadata. For explicit selection, reject disabled/paid/non-text models. For
 streaming, attempt the next provider only before the first content chunk; after
 that point emit the existing generic SSE error and `[DONE]`.
@@ -504,7 +505,7 @@ send and Shift+Enter for a newline.
 Use a refined editorial/technical direction: warm paper day mode, ink/navy
 night mode, one electric cyan accent, amber status accent, subtle grid/grain
 backgrounds, compact monospace metadata, and a distinctive display treatment
-for the QwenDBC mark. Define all colors, surfaces, borders, radii, spacing, and
+for the AI-DBC mark. Define all colors, surfaces, borders, radii, spacing, and
 shadows as variables. Start with one-column mobile layout, enhance at 768px
 and 1024px using fluid `minmax()`/`clamp()` values, prevent horizontal
 overflow, and keep body text at least `1rem`. Add focus-visible styles and a
@@ -632,10 +633,10 @@ Verify no secret-looking values, `.env.ai` contents, generated model files,
 tokens, or unrelated files are staged. Verify each acceptance criterion in the
 approved design against command output or a named test.
 
-## Task 8: Deploy and verify `dbc.zeaz.dev` with bounded runtime checks
+## Task 8: Deploy and verify `ai-dbc.zeaz.dev` with bounded runtime checks
 
 **Files/state:**
-- Runtime-only QwenDBC `.env`/Compose environment; never commit secrets.
+- Runtime-only AI-DBC `.env`/Compose environment; never commit secrets.
 - No Terraform change unless read-only route inspection proves it is needed.
 
 - [ ] **Step 1: Inspect runtime configuration without printing secrets.**
@@ -645,7 +646,7 @@ Check that the deployment has an app access token, intended provider keys, and
 and permissions, not values. If the token is absent, deploy in safe local mode
 and leave remote mode disabled.
 
-- [ ] **Step 2: Rebuild/restart only the QwenDBC stack.**
+- [ ] **Step 2: Rebuild/restart only the AI-DBC stack.**
 
 Use the repository's existing Compose/Make target with the deployment's
 existing host-port variables, then wait for both containers to be healthy. Do
@@ -661,14 +662,14 @@ SSE ends with `[DONE]`.
 
 - [ ] **Step 4: Verify the public UI and responsive themes.**
 
-Use the browser skill at `https://dbc.zeaz.dev` for read-only checks at mobile,
+Use the browser skill at `https://ai-dbc.zeaz.dev` for read-only checks at mobile,
 tablet, and desktop viewport sizes. Confirm day/night/system controls persist,
 system mode follows a changed media preference, focus rings are visible, the
 model selector and status are usable, and no internal path/key appears.
 
 - [ ] **Step 5: Verify public routing and no-op infrastructure state.**
 
-Check `https://dbc.zeaz.dev/api/v1/health`, the frontend HTML, and the existing
+Check `https://ai-dbc.zeaz.dev/api/v1/health`, the frontend HTML, and the existing
 under-construction/status ownership only as read-only evidence. If a
 Cloudflare/Terraform update is genuinely required, stop and produce a narrow
 saved plan before any apply; otherwise leave the previously verified route
@@ -679,7 +680,7 @@ unchanged.
 Capture commit SHA, container health, local/API/public status codes, selected
 provider/model, theme smoke result, and any unavailable provider. If runtime
 behavior is unsafe or unhealthy, set `REMOTE_MODELS_ENABLED=false` or
-`MODEL_MODE=local`, restart the QwenDBC stack, and re-run health before reporting
+`MODEL_MODE=local`, restart the AI-DBC stack, and re-run health before reporting
 the final state.
 
 ## Final acceptance checklist

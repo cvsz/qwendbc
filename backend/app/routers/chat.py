@@ -10,7 +10,7 @@ from fastapi.responses import StreamingResponse
 
 from app.routers.documents import get_rag_service
 from app.schemas.chat import ChatRequest, ChatResponse, HealthResponse, ModelInfo, ModelsResponse
-from app.schemas.config import settings
+from app.schemas.config import Settings, settings
 from app.services.llm_service import LLMService, llm_service
 from app.services.model_router import ModelRouter
 from app.services.provider_types import ProviderError
@@ -136,7 +136,10 @@ async def chat_completions(
     model_router: ModelRouter = Depends(get_model_router),
     rag: RAGService = Depends(get_rag_service),
     _: None = Depends(require_access),
-) -> dict[str, object]:
+) -> dict[str, object] | StreamingResponse:
+    if request.stream:
+        return await _stream_completion(request, model_router, rag)
+
     messages = [message.model_dump() for message in request.messages]
     messages, rag_sources = await _inject_rag_context(messages, request, rag)
     try:
@@ -164,12 +167,8 @@ async def chat_completions(
         ) from exc
 
 
-@router.post("/chat/completions/stream")
-async def chat_completions_stream(
-    request: ChatRequest,
-    model_router: ModelRouter = Depends(get_model_router),
-    rag: RAGService = Depends(get_rag_service),
-    _: None = Depends(require_access),
+async def _stream_completion(
+    request: ChatRequest, model_router: ModelRouter, rag: RAGService
 ) -> StreamingResponse:
     remote_capacity: RemoteCallLease | None = None
     requires_remote = False
@@ -204,7 +203,10 @@ async def chat_completions_stream(
     # Reserve immediately before opening the response so RAG work cannot hold a
     # remote-provider slot while it waits on local embedding/search work.
     if requires_remote:
-        remote_capacity = reserve_remote_call(getattr(model_router, "config", settings))
+        remote_config = getattr(model_router, "config", settings)
+        remote_capacity = reserve_remote_call(
+            remote_config if isinstance(remote_config, Settings) else settings
+        )
 
     # Keep this a synchronous generator. Starlette iterates sync response bodies in a
     # worker thread, preventing CPU-bound llama.cpp iteration from blocking the event loop.
@@ -226,7 +228,10 @@ async def chat_completions_stream(
         finally:
             if remote_capacity is not None:
                 remote_capacity.release()
-            yield "data: [DONE]\n\n"
+        # Keep the terminal event outside ``finally``. Yielding while handling
+        # GeneratorExit makes a client disconnect turn into "generator ignored
+        # GeneratorExit" and can leak a worker thread.
+        yield "data: [DONE]\n\n"
 
     return StreamingResponse(
         event_stream(),
@@ -237,6 +242,16 @@ async def chat_completions_stream(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.post("/chat/completions/stream")
+async def chat_completions_stream(
+    request: ChatRequest,
+    model_router: ModelRouter = Depends(get_model_router),
+    rag: RAGService = Depends(get_rag_service),
+    _: None = Depends(require_access),
+) -> StreamingResponse:
+    return await _stream_completion(request, model_router, rag)
 
 
 @router.get("/models", response_model=ModelsResponse)

@@ -1,3 +1,3 @@
-"""QwenDBC backend package."""
+"""AI-DBC backend package."""
 
 __version__ = "1.1.0"
