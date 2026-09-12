@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 from fastapi import APIRouter, HTTPException, Query, Request, status
 
 from app.conversations.service import ConversationNotFound, ConversationService
@@ -15,12 +14,6 @@ from app.services.access_control import require_access
 from app.workspace.manager import WorkspaceFileTooLarge, WorkspacePathError, WorkspaceService
 
 router = APIRouter()
-
-
-def _principal_id(request: Request) -> str:
-    authorization = request.headers.get("Authorization", "")
-    material = authorization if authorization else "local-access"
-    return hashlib.sha256(material.encode("utf-8")).hexdigest()
 
 
 def _services(request: Request) -> tuple[ConversationService, WorkspaceService]:
@@ -42,22 +35,41 @@ def _validate_conversation(
 
 def _workspace_error(exc: Exception) -> HTTPException:
     if isinstance(exc, WorkspaceFileTooLarge):
-        return HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=str(exc))
+        return HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=str(exc),
+        )
     if isinstance(
-        exc, (WorkspacePathError, UnicodeDecodeError, IsADirectoryError, NotADirectoryError)
+        exc,
+        (
+            WorkspacePathError,
+            UnicodeDecodeError,
+            IsADirectoryError,
+            NotADirectoryError,
+        ),
     ):
-        return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+        return HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        )
     if isinstance(exc, FileNotFoundError):
         return HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Workspace path not found"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Workspace path not found",
         )
     raise exc
 
 
-@router.post("/conversations", response_model=ConversationView, status_code=status.HTTP_201_CREATED)
-def create_conversation(payload: ConversationCreate, request: Request) -> ConversationView:
-    require_access(request)
-    principal = _principal_id(request)
+@router.post(
+    "/conversations",
+    response_model=ConversationView,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_conversation(
+    payload: ConversationCreate,
+    request: Request,
+) -> ConversationView:
+    principal = require_access(request).principal_id
     conversations, workspaces = _services(request)
     conversation = conversations.create(principal, payload.title)
     workspaces.workspace_root(principal, conversation.id)
@@ -74,10 +86,15 @@ def create_conversation(payload: ConversationCreate, request: Request) -> Conver
     )
 
 
-@router.get("/conversations/{conversation_id}", response_model=ConversationView)
-def get_conversation(conversation_id: str, request: Request) -> ConversationView:
-    require_access(request)
-    principal = _principal_id(request)
+@router.get(
+    "/conversations/{conversation_id}",
+    response_model=ConversationView,
+)
+def get_conversation(
+    conversation_id: str,
+    request: Request,
+) -> ConversationView:
+    principal = require_access(request).principal_id
     conversations, _ = _services(request)
     try:
         conversation = conversations.get(principal, conversation_id)
@@ -94,9 +111,11 @@ def get_conversation(conversation_id: str, request: Request) -> ConversationView
     "/conversations/{conversation_id}/timeline",
     response_model=list[TimelineEventView],
 )
-def get_timeline(conversation_id: str, request: Request) -> list[TimelineEventView]:
-    require_access(request)
-    principal = _principal_id(request)
+def get_timeline(
+    conversation_id: str,
+    request: Request,
+) -> list[TimelineEventView]:
+    principal = require_access(request).principal_id
     conversations, _ = _services(request)
     try:
         events = conversations.timeline(principal, conversation_id)
@@ -120,8 +139,7 @@ def list_workspace(
     request: Request,
     path: str = Query(default=".", max_length=1024),
 ) -> dict[str, object]:
-    require_access(request)
-    principal = _principal_id(request)
+    principal = require_access(request).principal_id
     conversations, workspaces = _services(request)
     _validate_conversation(conversations, principal, conversation_id)
     try:
@@ -140,8 +158,7 @@ def create_workspace_directory(
     payload: WorkspaceDirectoryCreate,
     request: Request,
 ) -> None:
-    require_access(request)
-    principal = _principal_id(request)
+    principal = require_access(request).principal_id
     conversations, workspaces = _services(request)
     _validate_conversation(conversations, principal, conversation_id)
     try:
@@ -165,12 +182,16 @@ def write_workspace_file(
     payload: WorkspaceWrite,
     request: Request,
 ) -> None:
-    require_access(request)
-    principal = _principal_id(request)
+    principal = require_access(request).principal_id
     conversations, workspaces = _services(request)
     _validate_conversation(conversations, principal, conversation_id)
     try:
-        workspaces.write_text(principal, conversation_id, payload.path, payload.content)
+        workspaces.write_text(
+            principal,
+            conversation_id,
+            payload.path,
+            payload.content,
+        )
     except Exception as exc:
         raise _workspace_error(exc) from exc
     conversations.append_event(
@@ -187,12 +208,15 @@ def read_workspace_file(
     request: Request,
     path: str = Query(min_length=1, max_length=1024),
 ) -> dict[str, str]:
-    require_access(request)
-    principal = _principal_id(request)
+    principal = require_access(request).principal_id
     conversations, workspaces = _services(request)
     _validate_conversation(conversations, principal, conversation_id)
     try:
-        content = workspaces.read_text(principal, conversation_id, path)
+        content = workspaces.read_text(
+            principal,
+            conversation_id,
+            path,
+        )
     except Exception as exc:
         raise _workspace_error(exc) from exc
     conversations.append_event(

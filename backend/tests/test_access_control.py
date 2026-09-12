@@ -1,11 +1,17 @@
 from concurrent.futures import ThreadPoolExecutor
+import hashlib
 
 import pytest
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.testclient import TestClient
 
+from app.identity import PrincipalContext
 from app.schemas.config import settings
-from app.services.access_control import guarded_remote_call, require_access, reset_access_control
+from app.services.access_control import (
+    guarded_remote_call,
+    require_access,
+    reset_access_control,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -26,6 +32,17 @@ def client() -> TestClient:
     def protected() -> dict[str, bool]:
         return {"ok": True}
 
+    @app.get("/identity")
+    def identity(context: PrincipalContext = Depends(require_access)) -> dict[str, object]:
+        return {
+            "principal_id": context.principal_id,
+            "tenant_id": context.tenant_id,
+            "subject": context.subject,
+            "roles": list(context.roles),
+            "scopes": sorted(context.scopes),
+            "authentication_method": context.authentication_method,
+        }
+
     with TestClient(app) as test_client:
         yield test_client
 
@@ -35,6 +52,44 @@ def test_no_token_keeps_local_operation_compatible(client: TestClient) -> None:
 
     assert response.status_code == 200
     assert response.json() == {"ok": True}
+
+
+def test_local_identity_context_is_stable(client: TestClient) -> None:
+    response = client.get("/identity")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "principal_id": hashlib.sha256(b"local-access").hexdigest(),
+        "tenant_id": "local",
+        "subject": "local-operator",
+        "roles": ["owner"],
+        "scopes": ["*"],
+        "authentication_method": "local",
+    }
+
+
+def test_verified_bearer_context_preserves_historical_principal_digest(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(settings, "QWENDBC_ACCESS_TOKEN", "expected")
+    authorization = "Bearer expected"
+
+    response = client.get(
+        "/identity",
+        headers={
+            "Authorization": authorization,
+            "X-Tenant-ID": "attacker-tenant",
+            "X-Roles": "admin,superuser",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["principal_id"] == hashlib.sha256(authorization.encode("utf-8")).hexdigest()
+    assert body["tenant_id"] == "local"
+    assert body["roles"] == ["owner"]
+    assert body["authentication_method"] == "bearer"
 
 
 def test_invalid_bearer_token_is_rejected(

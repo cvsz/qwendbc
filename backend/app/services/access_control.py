@@ -11,6 +11,7 @@ import time
 
 from fastapi import HTTPException, Request, status
 
+from app.identity import PrincipalContext, build_local_principal_context
 from app.schemas.config import Settings, settings
 
 _WINDOW_SECONDS = 60.0
@@ -77,18 +78,34 @@ def _request_settings(request: Request) -> Settings:
     return configured if isinstance(configured, Settings) else settings
 
 
-def require_access(request: Request) -> None:
-    """Enforce bearer access and a per-client fixed window when access is enabled."""
+def require_access(request: Request) -> PrincipalContext:
+    """Authenticate the request and return its explicit local principal context.
+
+    Existing callers may ignore the return value. Cowork and future policy
+    surfaces should consume it instead of deriving identity from headers again.
+    """
+
     config = _request_settings(request)
     expected = config.QWENDBC_ACCESS_TOKEN
-    if not expected:
-        return
-
     authorization = request.headers.get("Authorization", "")
+
+    if not expected:
+        return build_local_principal_context(
+            authorization,
+            bearer_verified=False,
+        )
+
     scheme, _, presented = authorization.partition(" ")
     if scheme.lower() != "bearer" or not presented or not hmac.compare_digest(presented, expected):
         raise _unauthorized()
-    _check_fixed_window(_client_key(request, expected, config), config.REMOTE_RATE_LIMIT_PER_MINUTE)
+    _check_fixed_window(
+        _client_key(request, expected, config),
+        config.REMOTE_RATE_LIMIT_PER_MINUTE,
+    )
+    return build_local_principal_context(
+        authorization,
+        bearer_verified=True,
+    )
 
 
 def _semaphore(config: Settings = settings) -> threading.BoundedSemaphore:
