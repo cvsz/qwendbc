@@ -44,8 +44,7 @@ class ConversationService:
 
     def _migrate(self) -> None:
         with self._connection:
-            self._connection.executescript(
-                """
+            self._connection.executescript("""
                 CREATE TABLE IF NOT EXISTS conversations (
                     id TEXT PRIMARY KEY,
                     principal_id TEXT NOT NULL,
@@ -64,8 +63,7 @@ class ConversationService:
                 );
                 CREATE INDEX IF NOT EXISTS idx_timeline_conversation
                     ON timeline_events(principal_id, conversation_id, created_at);
-                """
-            )
+                """)
 
     @staticmethod
     def _now() -> str:
