@@ -96,11 +96,7 @@ def require_access(request: Request) -> PrincipalContext:
         )
 
     scheme, _, presented = authorization.partition(" ")
-    if (
-        scheme.lower() != "bearer"
-        or not presented
-        or not hmac.compare_digest(presented, expected)
-    ):
+    if scheme.lower() != "bearer" or not presented or not hmac.compare_digest(presented, expected):
         raise _unauthorized()
     _check_fixed_window(
         _client_key(request, expected, config),
