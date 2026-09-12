@@ -7,11 +7,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from app.routers import chat, documents
+from app.conversations.service import ConversationService
+from app.routers import chat, cowork, documents
 from app.schemas.config import Settings, settings
 from app.services.llm_service import llm_service
 from app.services.rag_service import rag_service
 from app.utils.logger import get_logger
+from app.workspace.manager import WorkspaceService
 
 logger = get_logger(__name__)
 
@@ -28,6 +30,7 @@ def build_lifespan(config: Settings):
             if llm_service.is_loaded:
                 await asyncio.to_thread(llm_service.unload_model)
             await asyncio.to_thread(rag_service.close)
+            await asyncio.to_thread(_app.state.conversation_service.close)
             logger.info("Shutting down")
 
     return configured_lifespan
@@ -45,6 +48,11 @@ def create_app(config: Settings = settings) -> FastAPI:
         lifespan=build_lifespan(config),
     )
     application.state.settings = config
+    application.state.conversation_service = ConversationService(config.COWORK_DB_PATH)
+    application.state.workspace_service = WorkspaceService(
+        config.COWORK_WORKSPACE_ROOT,
+        max_file_bytes=config.COWORK_MAX_FILE_BYTES,
+    )
 
     application.add_middleware(
         TrustedHostMiddleware,
@@ -54,7 +62,7 @@ def create_app(config: Settings = settings) -> FastAPI:
         CORSMiddleware,
         allow_origins=config.allowed_origins_list,
         allow_credentials=False,
-        allow_methods=["GET", "POST", "OPTIONS"],
+        allow_methods=["GET", "POST", "PUT", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type"],
         max_age=600,
     )
@@ -88,6 +96,7 @@ def create_app(config: Settings = settings) -> FastAPI:
 
     application.include_router(chat.router, prefix="/api/v1", tags=["chat"])
     application.include_router(documents.router, prefix="/api/v1", tags=["documents"])
+    application.include_router(cowork.router, prefix="/api/v1", tags=["cowork"])
 
     @application.get("/")
     async def root() -> dict[str, str]:
