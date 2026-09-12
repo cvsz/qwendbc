@@ -76,6 +76,11 @@ class Settings(BaseSettings):
     MAX_RAG_CHUNKS: int = Field(default=100_000, ge=1, le=1_000_000)
     MAX_UPLOAD_BYTES: int = Field(default=5_000_000, ge=1024, le=5_000_000)
 
+    # Cowork / AionUi-inspired local workspace runtime
+    COWORK_DB_PATH: str = "./data/cowork.sqlite3"
+    COWORK_WORKSPACE_ROOT: str = "./workspaces"
+    COWORK_MAX_FILE_BYTES: int = Field(default=1_000_000, ge=1_024, le=10_000_000)
+
     # CORS
     ALLOWED_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000"
     ALLOWED_HOSTS: str = "localhost,127.0.0.1,testserver"
