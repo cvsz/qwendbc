@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class AgentView(BaseModel):
@@ -20,6 +20,14 @@ class TaskCreate(BaseModel):
     )
     objective: str = Field(min_length=1, max_length=4_000)
     conversation_id: str | None = Field(default=None, max_length=128)
+
+    @field_validator("objective")
+    @classmethod
+    def validate_objective(cls, value: str) -> str:
+        objective = value.strip()
+        if not objective:
+            raise ValueError("objective must contain non-whitespace content")
+        return objective
 
 
 class TaskView(BaseModel):
