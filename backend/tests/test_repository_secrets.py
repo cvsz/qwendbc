@@ -1,16 +1,13 @@
 from pathlib import Path
 import re
 
-
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLE_ENV_FILES = (
     ROOT / ".env.example",
     ROOT / ".env.webui.example",
     ROOT / "configs" / ".env.example",
 )
-SENSITIVE_NAME = re.compile(
-    r"(?:API_KEY|ACCESS_TOKEN|SECRET_KEY|PASSWORD|JUPYTER_TOKEN)$"
-)
+SENSITIVE_NAME = re.compile(r"(?:API_KEY|ACCESS_TOKEN|SECRET_KEY|PASSWORD|JUPYTER_TOKEN)$")
 EXTRA_SENSITIVE_NAMES = {"OPENWEBUI_GOOGLE_PSE_CX"}
 
 
@@ -29,7 +26,6 @@ def test_example_environment_files_do_not_embed_credentials() -> None:
                 if value.strip():
                     findings.append(f"{path.relative_to(ROOT)}:{line_number}:{name}")
 
-    assert findings == [], (
-        "Example environment files must contain blank credential values: "
-        + ", ".join(findings)
-    )
+    assert (
+        findings == []
+    ), "Example environment files must contain blank credential values: " + ", ".join(findings)
