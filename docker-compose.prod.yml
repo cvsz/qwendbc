@@ -17,6 +17,10 @@ services:
       - model_data:/app/models
       - chroma_data:/app/chroma_db
     read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     pids_limit: 512
     stop_grace_period: 30s
     tmpfs:
@@ -49,7 +53,6 @@ services:
       WEBUI_SECRET_KEY: ${OPENWEBUI_SECRET_KEY:-}
       WEBUI_URL: ${OPENWEBUI_URL:-https://ai-dbc.zeaz.dev}
       CORS_ALLOW_ORIGIN: ${OPENWEBUI_CORS_ALLOW_ORIGIN:-https://ai-dbc.zeaz.dev}
-      # Enterprise features
       ENABLE_LDAP: "${OPENWEBUI_ENABLE_LDAP:-false}"
       LDAP_SERVER_URI: "${OPENWEBUI_LDAP_SERVER_URI:-}"
       LDAP_BIND_DN: "${OPENWEBUI_LDAP_BIND_DN:-}"
@@ -79,7 +82,7 @@ services:
       ENABLE_CODE_EXECUTION: "${OPENWEBUI_ENABLE_CODE_EXECUTION:-false}"
       ENABLE_FILE_UPLOAD: "true"
       MAX_FILE_SIZE: "${OPENWEBUI_MAX_FILE_SIZE:-50MB}"
-      ENABLE_IMAGE_GENERATION: "${OPENWEBUI_ENABLE_IMAGE_GENERATION:-false}"
+      ENABLE_IMAGE_GENERATION: "${OPENWEBUI_IMAGE_GENERATION:-false}"
       ENABLE_RATE_LIMIT: "${OPENWEBUI_ENABLE_RATE_LIMIT:-true}"
       RATE_LIMIT_REQUESTS: "${OPENWEBUI_RATE_LIMIT_REQUESTS:-100}"
       RATE_LIMIT_WINDOW: "${OPENWEBUI_RATE_LIMIT_WINDOW:-60}"
@@ -103,6 +106,10 @@ services:
       backend:
         condition: service_healthy
     read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     pids_limit: 256
     stop_grace_period: 15s
     tmpfs:
@@ -121,7 +128,7 @@ services:
       retries: 3
 
   nginx-proxy:
-    image: nginx:1.29-alpine
+    image: nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de
     depends_on:
       frontend:
         condition: service_healthy
