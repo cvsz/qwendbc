@@ -4,7 +4,6 @@ from dataclasses import dataclass
 import hashlib
 from typing import Literal
 
-
 AuthenticationMethod = Literal["local", "bearer"]
 
 
