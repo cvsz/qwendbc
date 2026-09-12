@@ -43,10 +43,14 @@ def _validate_conversation(
 def _workspace_error(exc: Exception) -> HTTPException:
     if isinstance(exc, WorkspaceFileTooLarge):
         return HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=str(exc))
-    if isinstance(exc, (WorkspacePathError, UnicodeDecodeError, IsADirectoryError, NotADirectoryError)):
+    if isinstance(
+        exc, (WorkspacePathError, UnicodeDecodeError, IsADirectoryError, NotADirectoryError)
+    ):
         return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     if isinstance(exc, FileNotFoundError):
-        return HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Workspace path not found")
+        return HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Workspace path not found"
+        )
     raise exc
 
 

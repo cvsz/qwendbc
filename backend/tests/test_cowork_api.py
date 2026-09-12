@@ -37,9 +37,7 @@ def test_cowork_api_requires_bearer_and_records_timeline(tmp_path: Path):
         headers=headers,
     )
     assert read.json() == {"path": "notes/a.txt", "content": "hello"}
-    events = client.get(
-        f"/api/v1/conversations/{conversation_id}/timeline", headers=headers
-    ).json()
+    events = client.get(f"/api/v1/conversations/{conversation_id}/timeline", headers=headers).json()
     assert [event["event_type"] for event in events] == [
         "conversation.created",
         "workspace.file.written",
@@ -60,9 +58,7 @@ def test_different_bearer_principal_cannot_access_conversation(tmp_path: Path):
 def test_api_rejects_workspace_traversal(tmp_path: Path):
     client = make_client(tmp_path)
     headers = {"Authorization": f"Bearer {'a' * 32}"}
-    conversation_id = client.post(
-        "/api/v1/conversations", json={}, headers=headers
-    ).json()["id"]
+    conversation_id = client.post("/api/v1/conversations", json={}, headers=headers).json()["id"]
     response = client.put(
         f"/api/v1/conversations/{conversation_id}/workspace/file",
         json={"path": "../escape.txt", "content": "nope"},
