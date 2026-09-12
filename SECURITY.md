@@ -40,11 +40,17 @@ AI-DBC is designed primarily for local/private use. The application currently pr
 - CodeQL, dependency review, Dependabot, `pip-audit`, and `npm audit` automation;
 - local secret handling guidance through an ignored `.env`.
 
-The application **does not currently implement** a centralized identity
-provider, multi-user RBAC, tenant isolation, distributed rate limiting, an
-immutable audit log, secret-manager integration, TLS termination, HA/failover,
-or a hosted backup service. The process-local token is an application access
-boundary, not a replacement for organization-wide identity and authorization.
+The application now centralizes request identity in an explicit local
+`PrincipalContext` consumed by Cowork and the access-control boundary. This
+preserves the existing single-owner principal namespace and ignores
+caller-supplied tenant/role headers. It is **not** a production multi-tenant
+identity system.
+
+The application **does not currently implement** verified OIDC/JWT tenant
+identity, multi-user RBAC, distributed rate limiting, an immutable audit log,
+secret-manager integration, TLS termination, HA/failover, or a hosted backup
+service. The process-local token remains an application access boundary, not a
+replacement for organization-wide identity and authorization.
 
 Docker uses loopback-only `BACKEND_BIND_HOST` and `FRONTEND_BIND_HOST` defaults.
 For remote access, terminate TLS
