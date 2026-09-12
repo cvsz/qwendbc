@@ -78,14 +78,16 @@ class ConversationService:
         )
         with self._lock, self._connection:
             self._connection.execute(
-                "INSERT INTO conversations(id, principal_id, title, created_at) VALUES (?, ?, ?, ?)",
+                "INSERT INTO conversations(id, principal_id, title, created_at) "
+                "VALUES (?, ?, ?, ?)",
                 (item.id, item.principal_id, item.title, item.created_at),
             )
         return item
 
     def get(self, principal_id: str, conversation_id: str) -> Conversation:
         row = self._connection.execute(
-            "SELECT id, principal_id, title, created_at FROM conversations WHERE id = ? AND principal_id = ?",
+            "SELECT id, principal_id, title, created_at FROM conversations "
+            "WHERE id = ? AND principal_id = ?",
             (conversation_id, principal_id),
         ).fetchone()
         if row is None:
@@ -110,7 +112,9 @@ class ConversationService:
         )
         with self._lock, self._connection:
             self._connection.execute(
-                "INSERT INTO timeline_events(id, conversation_id, principal_id, event_type, payload_json, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT INTO timeline_events("
+                "id, conversation_id, principal_id, event_type, payload_json, created_at"
+                ") VALUES (?, ?, ?, ?, ?, ?)",
                 (
                     event.id,
                     event.conversation_id,
@@ -125,7 +129,9 @@ class ConversationService:
     def timeline(self, principal_id: str, conversation_id: str) -> list[TimelineEvent]:
         self.get(principal_id, conversation_id)
         rows = self._connection.execute(
-            "SELECT id, conversation_id, principal_id, event_type, payload_json, created_at FROM timeline_events WHERE conversation_id = ? AND principal_id = ? ORDER BY created_at, id",
+            "SELECT id, conversation_id, principal_id, event_type, payload_json, created_at "
+            "FROM timeline_events WHERE conversation_id = ? AND principal_id = ? "
+            "ORDER BY created_at, id",
             (conversation_id, principal_id),
         ).fetchall()
         return [
